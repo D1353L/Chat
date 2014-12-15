@@ -1,4 +1,5 @@
 require 'wx'
+require 'wx_runner'
 require 'socket'
 require 'json'
 include Wx
