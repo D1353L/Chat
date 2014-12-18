@@ -214,5 +214,5 @@ end
  
  
 Wx::App.run do
- LogIn.new.show
+ MainWindow.new.show
 end
