@@ -58,13 +58,13 @@ class ClientGUI
     flow do
       stack :width => '50%' do
         caption 'IN'
-        $in = edit_box :width => '100%', :height=> 200, :state=> "disabled"
+        $in = edit_box :width => '100%', :height=> 200, :state=> "readonly"
         $in.text="Connected to "+$serverPort+"\n"
       end
       receive
       stack :width => '50%' do
         caption 'CONNECTIONS'
-        $connections = edit_box :width => '100%', :height=> 200, :state=> "disabled"
+        $connections = edit_box :width => '100%', :height=> 200, :state=> "readonly"
       end
     end
 
