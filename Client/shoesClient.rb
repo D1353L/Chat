@@ -26,65 +26,88 @@ class ClientGUI
  
       @app.flow do
         @app.caption 'Server'
-        @serverPortEdit = @app.edit_line :width => '100%'
+        @server = @app.edit_line :width => '100%', :text=>"5196"
       end
  
       @app.button "Sign In" do
-        $serverPort=@serverPortEdit.text
-        $client = TCPSocket.new('localhost', 5196)
-
-        userdataJSON = JSON.generate('type'=>'userdata', 'login' =>@login.text, 'pass'=>@pass.text)
-        $client.puts userdataJSON
-                
-        $serverMsg=$client.sysread(5000)
-        
-        $serverMsg = JSON.parse($serverMsg)
-        
-        if($serverMsg["type"] == "confirmation" && $serverMsg["isCorrectCredentials"] == "true") then
-          $username=@login.text
-          mainWindow
-        else
-          @app.alert "Log in filed, provided credentials are incorrect"
-          $client.close
-        end
+        self.sign_in_handler(@login.text, @pass.text, @server.text)
       end
     end
   end
  
   def mainWindow
-  @app.window(:title => $username, :width => 700, :height => 350, :resizable => false) do
-    owner.close()
+    @app.window(:title => $username, :width => 700, :height => 350, :resizable => false) do
+      owner.close()
 
-    flow do
-      stack :width => '50%' do
-        caption 'IN'
-        $in = edit_box :width => '100%', :height=> 200, :state=> "readonly"
-        $in.text="Connected to "+$serverPort+"\n"
-      end
-      receive
-      stack :width => '50%' do
-        caption 'CONNECTIONS'
-        $connections = edit_box :width => '100%', :height=> 200, :state=> "readonly"
-      end
-    end
-
-    stack :margin => 1 do
-      caption 'OUT: '
       flow do
-        $out = edit_box :width => '90%', :height=>40
-        button 'Send', :height=>40 do
-          send($out.text)
-          $out.text=""
+        stack :width => '50%' do
+          caption 'IN'
+          $in = edit_box :width => '100%', :height=> 200, :state=> "readonly"
+          $in.text="Connected to "+$server+"\n"
+        end
+        Client.new.receive
+        stack :width => '50%' do
+          caption 'CONNECTIONS'
+          $connections = edit_box :width => '100%', :height=> 200, :state=> "readonly"
+        end
+      end
+
+      stack :margin => 1 do
+        caption 'OUT: '
+        flow do
+          $out = edit_box :width => '90%', :height=>40
+          button 'Send', :height=>40 do
+            Client.new.send($out.text)
+            $out.text=""
+          end
         end
       end
     end
   end
+
+  def sign_in_handler(login, pass, server)
+    response = Client.new.sign_in(login, pass, server)
+    if response == true   
+      mainWindow
+    elsif response == Errno::ECONNREFUSED
+      @app.alert "Server not responding"  
+    else  
+      @app.alert "Log in filed, provided credentials are incorrect"  
+    end   
+  end
 end
-end
- 
+
+
+  $username = ""
+  $socket = nil
+  $serverMsg = ""
+class Client
+
+  def sign_in(login, pass, server)
+    begin   
+      $socket = TCPSocket.new('localhost', server)   
+    rescue Errno::ECONNREFUSED  
+      return Errno::ECONNREFUSED  
+    end   
+   
+    userdataJSON = JSON.generate('type'=>'userdata', 'login' =>login, 'pass'=>pass)   
+    $socket.puts userdataJSON   
+   
+    $serverMsg = $socket.sysread(5000)  
+   
+    $serverMsg = JSON.parse($serverMsg)   
+   
+    if($serverMsg["type"] == "confirmation" && $serverMsg["isCorrectCredentials"] == "true") then   
+      $username=login  
+      return true   
+    else  
+      $socket.close   
+      return false  
+    end
+  end
 
 def refresh_connections(users)
-  tconnections=Thread.new do
+  Thread.new do
     $connections.text=""
     
     users.each do |user|
@@ -112,19 +135,21 @@ def data_sort(servMsg)
 end
 
 def receive
-  treceive=Thread.new do
+  Thread.new do
     while(true)
-      $serverMsg=$client.sysread(5000)
+      $serverMsg=$socket.sysread(5000)
       data_sort($serverMsg)
     end
   end  
 end
 
 def send(msg)
-  tsend=Thread.new do
+  Thread.new do
     msgJSON = JSON.generate('type'=>'message', 'user' =>$username, 'msg'=>msg)
-    $client.puts msgJSON
+    $socket.puts msgJSON
   end
+end
+
 end
  
 Shoes.app(:title => 'Log In', :width => 300, :height => 300, :resizable => false){
