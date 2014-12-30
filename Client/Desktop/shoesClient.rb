@@ -78,9 +78,9 @@ class ClientGUI
 end
 
 
-  $username = ""
-  $socket = nil
-  $serverMsg = ""
+$username = ""
+$socket = nil
+$serverMsg = ""
 class Client
 
   def sign_in(login, pass, server)
@@ -106,50 +106,48 @@ class Client
     end
   end
 
-def refresh_connections(users)
-  Thread.new do
-    $connections.text=""
+	def refresh_connections(users)
+    Thread.new do
+      $connections.text=""
     
-    users.each do |user|
-      if user!= $username
-        $connections.text=$connections.text+user+"\n"
+      users.each do |user|
+        if user!= $username
+          $connections.text=$connections.text+user+"\n"
+        end
+      end  
+    end
+  end
+
+  def data_sort(servMsg)
+    if JSON.parse(servMsg)["type"] == "connections"
+      refresh_connections(JSON.parse(servMsg)["users"])
+    
+    elsif JSON.parse(servMsg)["type"] == "message"
+      now = DateTime.now
+      str = "["+now.strftime("%-d.%-m.%Y %H:%M:%S")+"] "+JSON.parse(servMsg)["user"]+": "+JSON.parse(servMsg)["msg"]+"\n"
+    
+      $in.text = $in.text+str
+    
+    elsif JSON.parse(servMsg)["type"] == "newConnection"
+      $in.text=$in.text+"User "+JSON.parse(servMsg)["login"]+" connected\n"
+    end
+  end
+
+  def receive
+    Thread.new do
+      while(true)
+        $serverMsg=$socket.sysread(5000)
+        data_sort($serverMsg)
       end
+    end  
+  end
+
+  def send(msg)
+    Thread.new do
+      msgJSON = JSON.generate('type'=>'message', 'user' =>$username, 'msg'=>msg)
+      $socket.puts msgJSON
     end
-    
   end
-end
-
-def data_sort(servMsg)
-  if JSON.parse(servMsg)["type"] == "connections"
-    refresh_connections(JSON.parse(servMsg)["users"])
-    
-  elsif JSON.parse(servMsg)["type"] == "message"
-    now = DateTime.now
-    str = "["+now.strftime("%-d.%-m.%Y %H:%M:%S")+"] "+JSON.parse(servMsg)["user"]+": "+JSON.parse(servMsg)["msg"]+"\n"
-    
-    $in.text = $in.text+str
-    
-  elsif JSON.parse(servMsg)["type"] == "newConnection"
-    $in.text=$in.text+"User "+JSON.parse(servMsg)["login"]+" connected\n"
-  end
-end
-
-def receive
-  Thread.new do
-    while(true)
-      $serverMsg=$socket.sysread(5000)
-      data_sort($serverMsg)
-    end
-  end  
-end
-
-def send(msg)
-  Thread.new do
-    msgJSON = JSON.generate('type'=>'message', 'user' =>$username, 'msg'=>msg)
-    $socket.puts msgJSON
-  end
-end
-
 end
  
 Shoes.app(:title => 'Log In', :width => 300, :height => 300, :resizable => false){
