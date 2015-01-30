@@ -57,8 +57,27 @@ class Server extends Thread
                     LogIn(client, fromClient);
             
             else if("message".equals(fromClient.get("type")))
-                for(ClientInstance item: Server.clients)
-                    item.Write(fromClient);
+            {
+            	if("all".equals(fromClient.get("to")))
+            	{
+            		for(ClientInstance item: Server.clients)
+            		{
+            			item.Write(fromClient);
+            		}
+            	}
+            	else
+            	{
+            		for(ClientInstance item: Server.clients)
+            		{
+            			if(item.login.equals(fromClient.get("to")))
+            			{
+            				item.Write(fromClient);
+            				client.Write(fromClient);
+            				break;
+            			}
+            		}
+            	}
+            }
             else
             {
                 throw new Exception("Invalid message type");
@@ -77,7 +96,7 @@ class Server extends Thread
         JSONObject request = new JSONObject();
         request.put("type", "confirmation");
         
-        if(("admin".equals(login) && "123".equals(pass)) || ("nik".equals(login) && "1".equals(pass)))
+        if(("admin".equals(login) && "123".equals(pass)) || ("nik".equals(login) && "1".equals(pass)) || ("nik2".equals(login) && "1".equals(pass)))
         {
             request.put("isCorrectCredentials", "true");
             client.Write(request);
