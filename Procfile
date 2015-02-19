@@ -1,1 +1,1 @@
-worker: java -jar target/Server-1-jar-with-dependencies.jar
+worker: java $JAVA_OPTS -Dserver.port=$PORT -jar target/Server-1-jar-with-dependencies.jar
