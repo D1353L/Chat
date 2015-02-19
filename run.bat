@@ -1,1 +1,1 @@
-java -jar target/Server-1-jar-with-dependencies.jar
+java $JAVA_OPTS -cp target/classes:target/dependency/* Server
