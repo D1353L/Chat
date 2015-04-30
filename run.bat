@@ -1,1 +1,1 @@
-java $JAVA_OPTS -cp target/classes:target/dependency/* Server
+java %JAVA_OPTS% -cp target\classes;"target\dependency\*" com.chat.server.Server

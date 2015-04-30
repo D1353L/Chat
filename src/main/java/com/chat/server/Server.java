@@ -1,81 +1,61 @@
 package com.chat.server;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.net.ServerSocket;
-import java.util.ArrayList;
-import org.json.simple.JSONObject;
+
 import org.json.simple.*;
-@SuppressWarnings("unchecked")
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+import org.java_websocket.WebSocket;
 
+import java.net.InetSocketAddress;
 
-class Server extends Thread
+import org.java_websocket.handshake.ClientHandshake;
+import org.java_websocket.server.WebSocketServer;
+
+class Server extends WebSocketServer
 {
-    
-    final static int port=5196;
-    static ArrayList<ClientInstance> clients=new ArrayList<ClientInstance>();
-    static int threads=0;
 
-    public static void main(String args[])
-    {
-        ServerSocket server=null;
-        try
-        {
-
-            server = new ServerSocket(port);
-
-            System.out.println("server is started");
-            
-
-            // ожидание клиента
-            while(true)
-            {
-                // после подключения клиента, добавляется в массив и выделяется отдельный поток
-                clients.add(new ClientInstance(threads, server.accept()));
-                threads++;
-                System.out.println("Client - "+threads);
-                Thread.sleep(100);
-            }
-        }
-        catch(Exception e)
-        {
-            System.out.println("main - init error: "+e);
-            try
-            {
-                server.close();
-            }catch(IOException io)
-            {System.out.println("main - IOException: "+io);}
-        }
+    public Server(InetSocketAddress address) {
+        super(address);
     }
 
-   
+    @Override
+    public void onOpen(WebSocket conn, ClientHandshake handshake) {
+        System.out.println("new connection to " + conn.getRemoteSocketAddress());
+    }
+
+    @Override
+    public void onClose(WebSocket conn, int code, String reason, boolean remote) {
+        System.out.println("closed " + conn.getRemoteSocketAddress() + " with exit code " + code + " additional info: " + reason);
+    }
+
+    @Override
+    public void onMessage(WebSocket conn, String message) {
+    	JSONParser parser=new JSONParser();
+    	try{
+    		DataSort(conn, (JSONObject)parser.parse(message));
+    	}catch(ParseException pe){System.err.println("Parse exception from "+conn.getRemoteSocketAddress()+": "+pe);}
+    }
+
+    @Override
+    public void onError(WebSocket conn, Exception ex) {
+        System.err.println("an error occured on connection " + conn.getRemoteSocketAddress()  + ":" + ex);
+    }
     
-    public static void DataSort(ClientInstance client, JSONObject fromClient, PrintWriter out)
+    public void DataSort(WebSocket client, JSONObject fromClient)
     {
         try
         {
             if("userdata".equals(fromClient.get("type")))
-                    LogIn(client, fromClient);
+            	LogIn(client, fromClient);
             
             else if("message".equals(fromClient.get("type")))
             {
             	if("all".equals(fromClient.get("to")))
             	{
-            		for(ClientInstance item: Server.clients)
-            		{
-            			item.Write(fromClient);
-            		}
+
             	}
             	else
             	{
-            		for(ClientInstance item: Server.clients)
-            		{
-            			if(item.login.equals(fromClient.get("to")))
-            			{
-            				item.Write(fromClient);
-            				client.Write(fromClient);
-            				break;
-            			}
-            		}
+            		
             	}
             }
             else
@@ -87,52 +67,27 @@ class Server extends Thread
         {System.out.println("DataSort - init error: "+e);}
     }
     
-    private static void LogIn(ClientInstance client, JSONObject json)
+    private void LogIn(WebSocket client, JSONObject json)
     {
         String login=(String)json.get("login"), pass=(String)json.get("pass");
         
         System.out.println(login+'\n'+pass);
         
-        JSONObject request = new JSONObject();
-        request.put("type", "confirmation");
-        
         if(("admin".equals(login) && "123".equals(pass)) || ("nik".equals(login) && "1".equals(pass)) || ("nik2".equals(login) && "1".equals(pass)))
         {
-            request.put("isCorrectCredentials", "true");
-            client.Write(request);
-            client.login=login;
-                client.logged=true;
-                
-                JSONObject connections = new JSONObject();
-                JSONArray users = new JSONArray();
-                JSONObject newConnection = new JSONObject();
-                
-                for(ClientInstance item: Server.clients)
-                    users.add(item.login);  
-              
-                connections.put("type", "connections");
-                connections.put("users", users);
-                
-                for(ClientInstance item: Server.clients)
-                {
-                    if(!item.login.equals(login))
-                    {
-                        newConnection.put("type", "newConnection");
-                        newConnection.put("login", login);
-                        item.Write(newConnection);    
-                    }
-                    
-                    try {
-                        Thread.sleep(500);
-                    }catch(InterruptedException ex){Thread.currentThread().interrupt();}
-                    
-                    item.Write(connections);
-                }
+            client.send("{\"type\":\"confirmation\",\"isCorrectCredentials\":\"true\"}\r\n");
         }
         else
         {
-            request.put("isCorrectCredentials", "false");
-            client.Write(request);
+            client.send("{\"type\":\"confirmation\",\"isCorrectCredentials\":\"false\"}\r\n");
         }
+    }
+    
+    public static void main(String[] args) {
+        String host = "localhost";
+        int port = 5168;
+
+        WebSocketServer server = new Server(new InetSocketAddress(host, port));
+        server.run();
     }
 }
