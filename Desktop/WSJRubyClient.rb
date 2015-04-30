@@ -1,6 +1,8 @@
 require 'socket'
 require 'json'
 require 'io/wait'
+require 'faye/websocket'
+require 'eventmachine'
 
 
 include Java
@@ -205,40 +207,42 @@ class ClientModel
   attr_accessor :socket, :serverMsg, :connections, :username
 
   def self.sign_in(login, pass, server)
-    begin   
-      @socket = TCPSocket.new('localhost', 5189)   
-    rescue Errno::ECONNREFUSED  
-      return Errno::ECONNREFUSED  
-    end   
+    EM.run{
+      @socket = Faye::WebSocket::Client.new('ws://localhost:5168/')   
    
-    userdataJSON = JSON.generate('type'=>'userdata', 'login' =>login, 'pass'=>pass)   
-    @socket.puts userdataJSON   
+      userdataJSON = JSON.generate('type'=>'userdata', 'login' =>login, 'pass'=>pass)   
+      @socket.send userdataJSON   
    
-    @serverMsg = @socket.sysread(5000)  
-   
-    @serverMsg = JSON.parse(@serverMsg)   
-   
-    if(@serverMsg["type"] == "confirmation" && @serverMsg["isCorrectCredentials"] == "true") then   
-      @username=login  
-      return true   
-    else  
-      @socket.close   
-      return false  
-    end
+      @socket.on :message do |event|
+        p event.data
+        @serverMsg = JSON.parse(event.data)
+        if(@serverMsg["type"] == "confirmation" && @serverMsg["isCorrectCredentials"] == "true") then   
+          @username=login
+          return true   
+        elsif !self.data_sort(event.data)
+          @socket.close
+          return false  
+        end
+      end 
+    
+      @socket.on :close do |event|
+        @socket = nil
+      end
+    }
   end
 
   def self.data_sort(servMsg)
     if JSON.parse(servMsg)["type"] == "connections"
       p "connections"
       ClientController.refreshUserList(JSON.parse(servMsg)["users"])
-    
+      return true
     elsif JSON.parse(servMsg)["type"] == "message"
       now = DateTime.now
       str = "["+now.strftime("%-d.%-m.%Y %H:%M:%S")+"] "+JSON.parse(servMsg)["user"]+": "+JSON.parse(servMsg)["msg"]+"\n"
       ClientController.receiveMsg str
-    else
-      raise "Wrong command type: " + JSON.parse(servMsg)["type"]
+      return true
     end
+    return false
   end
 
   def self.receive
