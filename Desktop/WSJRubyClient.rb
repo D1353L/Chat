@@ -201,6 +201,16 @@ class ClientController
     end
     SwingUtilities.updateComponentTreeUI($app.mainWin);
   end
+  
+  def self.addUserToList(user) 
+    $app.listModel.addElement user
+    SwingUtilities.updateComponentTreeUI($app.mainWin);
+  end
+  
+  def self.deleteUserFromList(user)
+    $app.listModel.removeElement user
+    SwingUtilities.updateComponentTreeUI($app.mainWin);
+  end
 end
 
 class ClientModel
@@ -232,36 +242,34 @@ class ClientModel
   end
 
   def self.data_sort(servMsg)
+    result = false
+    
     if JSON.parse(servMsg)["type"] == "connections"
-      p "connections"
       ClientController.refreshUserList(JSON.parse(servMsg)["users"])
-      return true
+      result = true
+      
     elsif JSON.parse(servMsg)["type"] == "message"
       now = DateTime.now
       str = "["+now.strftime("%-d.%-m.%Y %H:%M:%S")+"] "+JSON.parse(servMsg)["user"]+": "+JSON.parse(servMsg)["msg"]+"\n"
       ClientController.receiveMsg str
-      return true
+      result = true
+      
+    elsif JSON.parse(servMsg)["type"] == "newClient"
+      ClientController.addUserToList(JSON.parse(servMsg)["name"])
+      result = true
+      
+    elsif JSON.parse(servMsg)["type"] == "lostClient" 
+      ClientController.deleteUserFromList(JSON.parse(servMsg)["name"])
+      result = true
     end
-    return false
-  end
-
-  def self.receive
-    Thread.new do
-      i=1
-      while(true)
-        if @socket.ready?
-          p @serverMsg=@socket.recv(5000)
-          self.data_sort(@serverMsg)
-        end
-        #p i+=1
-      end
-    end  
+    
+    return result
   end
 
   def self.send(msg, receiver)
     Thread.new do
       msgJSON = JSON.generate('type'=>'message', 'user' =>@username, 'msg'=>msg, 'to'=>receiver)
-      @socket.puts msgJSON
+      @socket.send msgJSON
     end
   end
 end
