@@ -12,6 +12,7 @@ import java.awt.Dimension
 import java.awt.Font
 import java.awt.event.ActionListener
 
+import javax.swing.SwingUtilities
 import javax.swing.JFrame
 import javax.swing.Box
 import javax.swing.JPanel
@@ -94,7 +95,6 @@ public
   end
   
   def openMainWindow
-    ClientModel.receive
     @logInWin.setVisible false
     
     @mainWin = JFrame.new
@@ -171,14 +171,15 @@ end
 class ClientController
   
   def self.signIn(login, pass, server)
-    response = ClientModel.sign_in(login, pass, server)
-    if response == true
-      $app.openMainWindow
-    elsif response == Errno::ECONNREFUSED
-      JOptionPane.showMessageDialog nil, "Server not responding", "Connection error", JOptionPane::ERROR_MESSAGE   
-    else
-      JOptionPane.showMessageDialog nil, "Log in filed, provided credentials are incorrect", "Log in error", JOptionPane::ERROR_MESSAGE   
-    end   
+    ClientModel.connect(login, pass, server)          
+  end
+  
+  def self.accessDenied
+    JOptionPane.showMessageDialog nil, "Log in filed, provided credentials are incorrect", "Log in error", JOptionPane::ERROR_MESSAGE
+  end
+  
+  def self.accessGranted
+    $app.openMainWindow
   end
   
   def register
@@ -193,46 +194,47 @@ class ClientController
     
   end
   
-  def self.refreshUserList(users) 
-    $app.listModel.removeAllElements   
-    p users.sort
-    users.each do |user|
-      $app.listModel.addElement user
+  def self.refreshUserList(users)
+    $app.listModel.removeAllElements
+    p users
+
+    if users != "[]"
+      users.gsub(/[\[\]]/, "").split(",").sort.each do |user|
+        $app.listModel.addElement user
+      end
     end
-    SwingUtilities.updateComponentTreeUI($app.mainWin);
+    
+    SwingUtilities.updateComponentTreeUI($app.mainWin)
   end
   
-  def self.addUserToList(user) 
+  def self.addUserToList(user)
     $app.listModel.addElement user
-    SwingUtilities.updateComponentTreeUI($app.mainWin);
+    SwingUtilities.updateComponentTreeUI($app.mainWin)
   end
   
   def self.deleteUserFromList(user)
     $app.listModel.removeElement user
-    SwingUtilities.updateComponentTreeUI($app.mainWin);
+    SwingUtilities.updateComponentTreeUI($app.mainWin)
   end
 end
 
 class ClientModel
   attr_accessor :socket, :serverMsg, :connections, :username
 
-  def self.sign_in(login, pass, server)
+  def self.connect(login, pass, server)
     EM.run{
       @socket = Faye::WebSocket::Client.new('ws://localhost:5168/')   
    
       userdataJSON = JSON.generate('type'=>'userdata', 'login' =>login, 'pass'=>pass)   
       @socket.send userdataJSON   
+      
+       @socket.on :open do |event|
+         p [:open]
+       end
    
       @socket.on :message do |event|
         p event.data
-        @serverMsg = JSON.parse(event.data)
-        if(@serverMsg["type"] == "confirmation" && @serverMsg["isCorrectCredentials"] == "true") then   
-          @username=login
-          return true   
-        elsif !self.data_sort(event.data)
-          @socket.close
-          return false  
-        end
+        data_sort(event.data)
       end 
     
       @socket.on :close do |event|
@@ -244,7 +246,17 @@ class ClientModel
   def self.data_sort(servMsg)
     result = false
     
-    if JSON.parse(servMsg)["type"] == "connections"
+    if(JSON.parse(servMsg)["type"] == "confirmation" && JSON.parse(servMsg)["isCorrectCredentials"] == "true")  
+      @username=JSON.parse(servMsg)["name"]
+      ClientController.accessGranted
+      result = true
+       
+    elsif (JSON.parse(servMsg)["type"] == "confirmation" && JSON.parse(servMsg)["isCorrectCredentials"] == "false") 
+      @socket.close
+      ClientController.accessDenied
+      result = true
+    
+    elsif JSON.parse(servMsg)["type"] == "connections"
       ClientController.refreshUserList(JSON.parse(servMsg)["users"])
       result = true
       
