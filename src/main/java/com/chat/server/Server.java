@@ -2,6 +2,7 @@ package com.chat.server;
 
 import org.json.simple.*;
 import java.util.HashMap;
+import java.util.ArrayList;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.java_websocket.WebSocket;
@@ -16,7 +17,8 @@ class Server extends WebSocketServer
 	private HashMap<WebSocket, String> clients = new HashMap<WebSocket, String>();
 
     public Server(InetSocketAddress address) {
-        super(address);
+    	super(address);
+    	System.out.println("server started");
     }
 
     @Override
@@ -29,8 +31,10 @@ class Server extends WebSocketServer
         System.out.println("closed " + conn.getRemoteSocketAddress() + " with exit code " + code + " additional info: " + reason);
         
         for (WebSocket client : clients.keySet()) {
-        	if(client!=conn)
+        	if(client!=conn){
+        		System.out.println(String.format("To"+conn.getRemoteSocketAddress()+"{\type\": \"lostClient\", \"name\": \"%s\"}\r\n", clients.get(conn)));
         		client.send(String.format("{\"type\": \"lostClient\", \"name\": \"%s\"}\r\n", clients.get(conn)));
+        	}
         }
         clients.remove(conn);
             
@@ -40,6 +44,7 @@ class Server extends WebSocketServer
     public void onMessage(WebSocket conn, String message) {
     	JSONParser parser=new JSONParser();
     	try{
+    		System.out.println("From "+conn.getRemoteSocketAddress()+" "+message);
     		DataSort(conn, (JSONObject)parser.parse(message));
     	}catch(ParseException pe){System.err.println("Parse exception from "+conn.getRemoteSocketAddress()+": "+pe);}
     }
@@ -60,14 +65,18 @@ class Server extends WebSocketServer
             {
             	if("all".equals(fromClient.get("to")))
             	{
-            		for (WebSocket cl : clients.keySet())
+            		for (WebSocket cl : clients.keySet()){
+            			System.out.println("To "+cl.getRemoteSocketAddress()+" "+fromClient.toString());
             			cl.send(fromClient.toString());
+            		}
             	}
             	else
             	{
             		for (WebSocket cl : clients.keySet())
                     	if(clients.get(cl).equals(fromClient.get("to")))
                     	{
+                    		System.out.println("To "+cl.getRemoteSocketAddress()+" "+fromClient.toString());
+                    		System.out.println("To "+client.getRemoteSocketAddress()+" "+fromClient.toString());
                     		cl.send(fromClient.toString());
                     		client.send(fromClient.toString());
                     		break;
@@ -88,27 +97,32 @@ class Server extends WebSocketServer
         String login=(String)json.get("login"),
         		pass=(String)json.get("pass");
         
-        System.out.println(login+'\n'+pass);
-        
         if(("admin".equals(login) && "123".equals(pass)) || ("nik".equals(login) && "1".equals(pass)) || ("nik2".equals(login) && "1".equals(pass)))
         {
-            client.send("{\"type\":\"confirmation\",\"isCorrectCredentials\":\"true\"}\r\n");
+        	System.out.println("To "+client.getRemoteSocketAddress()+"{\"type\":\"confirmation\",\"isCorrectCredentials\":\"true\"}\r\n");
+            client.send(String.format("{\"type\":\"confirmation\",\"isCorrectCredentials\":\"true\",\"name\":\"%s\"}\r\n", login));
             
-            for (WebSocket cl : clients.keySet())
-            		cl.send(String.format("{\"type\": \"newClient\", \"name\": \"%s\"}\r\n", login));
+            try {
+                Thread.sleep(1200);
+            }catch(InterruptedException ex){Thread.currentThread().interrupt();}
             
-            //TODO: send array of connected users
-            /*
+            for (WebSocket cl : clients.keySet()){
+            	System.out.println(String.format("To "+client.getRemoteSocketAddress()+"{\"type\": \"newClient\", \"name\": \"%s\"}\r\n", login));
+            	cl.send(String.format("{\"type\": \"newClient\", \"name\": \"%s\"}\r\n", login));
+            }
+
+            ArrayList<String> users=new ArrayList<String>();
             for (WebSocket cl : clients.keySet())
-            	<array> = clients.get(cl);
-            	
-            client.send("{\"type\":\"connections\",\"users\":\"%a\"}\r\n");
-            */
+            	users.add(clients.get(cl));
+            
+            System.out.println(String.format("To "+client.getRemoteSocketAddress()+"{\"type\":\"connections\",\"users\":\"%s\"}\r\n", users.toString()));
+            client.send(String.format("{\"type\":\"connections\",\"users\":\"%s\"}\r\n", users.toString()));
             
             clients.put(client, login);
         }
         else
         {
+        	System.out.println("To "+client.getRemoteSocketAddress()+"{\"type\":\"confirmation\",\"isCorrectCredentials\":\"false\"}\r\n");
             client.send("{\"type\":\"confirmation\",\"isCorrectCredentials\":\"false\"}\r\n");
         }
     }
