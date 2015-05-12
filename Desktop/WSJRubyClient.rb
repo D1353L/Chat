@@ -11,6 +11,7 @@ import java.awt.GridLayout
 import java.awt.Dimension
 import java.awt.Font
 import java.awt.event.ActionListener
+import java.awt.event.MouseAdapter
 
 import javax.swing.SwingUtilities
 import javax.swing.JFrame
@@ -94,7 +95,7 @@ public
     @logInWin.setVisible true
   end
   
-  def openMainWindow
+  def openMainWindow(title)
     @logInWin.setVisible false
     
     @mainWin = JFrame.new
@@ -104,14 +105,7 @@ public
     @listModel= DefaultListModel.new
     list = JList.new @listModel
     
-    list.add_list_selection_listener do |e|
-
-        sender = e.source
-
-        if not e.getValueIsAdjusting
-          self.openMsgWindow sender.getSelectedValue
-        end
-    end
+    list.addMouseListener MouseAction.new
 
     pane = JScrollPane.new
     pane.getViewport.add list
@@ -122,11 +116,11 @@ public
     @mainWin.setDefaultCloseOperation JFrame::EXIT_ON_CLOSE
     @mainWin.setSize 220, 460
     @mainWin.setLocationRelativeTo nil
-    @mainWin.setTitle "Chat"
+    @mainWin.setTitle title
     @mainWin.setVisible true
   end
   
-  def openMsgWindow(user)
+  def openMsgWindow(title)
     @msgWin = JFrame.new
     basic = JPanel.new
     basic.setLayout GridLayout.new 2,1
@@ -151,7 +145,7 @@ public
     
     @msgWin.setSize 350, 350
     @msgWin.setLocationRelativeTo nil
-    @msgWin.setTitle user
+    @msgWin.setTitle title
     @msgWin.setVisible true
   end
   
@@ -161,12 +155,24 @@ public
     elsif ev.getActionCommand == "Register"
       send ClientController.register
     elsif ev.getActionCommand == "Send"
-      send ClientController.sendMsg @outMsg.getText, @msgWin.getTitle
+      msg = @outMsg.getText
+      @outMsg.setText ""
+      send ClientController.sendMsg msg, @msgWin.getTitle
     else
       raise "Wrong command"+ev.getActionCommand
     end
   end
 end
+
+class MouseAction < MouseAdapter
+  
+    def mouseClicked e
+        sender = e.source
+        if e.getClickCount == 2 && sender.getSelectedIndex != -1
+          $app.openMsgWindow sender.getSelectedValue
+        end
+    end  
+end  
 
 class ClientController
   
@@ -178,8 +184,8 @@ class ClientController
     JOptionPane.showMessageDialog nil, "Log in filed, provided credentials are incorrect", "Log in error", JOptionPane::ERROR_MESSAGE
   end
   
-  def self.accessGranted
-    $app.openMainWindow
+  def self.accessGranted(username)
+    $app.openMainWindow(username)
   end
   
   def register
@@ -196,14 +202,12 @@ class ClientController
   
   def self.refreshUserList(users)
     $app.listModel.removeAllElements
-    p users
-
+    
     if users != "[]"
       users.gsub(/[\[\]]/, "").split(",").sort.each do |user|
         $app.listModel.addElement user
       end
     end
-    
     SwingUtilities.updateComponentTreeUI($app.mainWin)
   end
   
@@ -222,6 +226,7 @@ class ClientModel
   attr_accessor :socket, :serverMsg, :connections, :username
 
   def self.connect(login, pass, server)
+    Thread.new do
     EM.run{
       @socket = Faye::WebSocket::Client.new('ws://localhost:5168/')   
    
@@ -241,6 +246,7 @@ class ClientModel
         @socket = nil
       end
     }
+    end
   end
 
   def self.data_sort(servMsg)
@@ -248,7 +254,7 @@ class ClientModel
     
     if(JSON.parse(servMsg)["type"] == "confirmation" && JSON.parse(servMsg)["isCorrectCredentials"] == "true")  
       @username=JSON.parse(servMsg)["name"]
-      ClientController.accessGranted
+      ClientController.accessGranted @username
       result = true
        
     elsif (JSON.parse(servMsg)["type"] == "confirmation" && JSON.parse(servMsg)["isCorrectCredentials"] == "false") 
@@ -279,9 +285,11 @@ class ClientModel
   end
 
   def self.send(msg, receiver)
+    p "Model.sendMsg"
     Thread.new do
       msgJSON = JSON.generate('type'=>'message', 'user' =>@username, 'msg'=>msg, 'to'=>receiver)
       @socket.send msgJSON
+      return true
     end
   end
 end
