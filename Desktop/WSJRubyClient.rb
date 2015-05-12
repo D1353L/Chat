@@ -10,6 +10,14 @@ include Java
 import java.awt.GridLayout
 import java.awt.Dimension
 import java.awt.Font
+import java.awt.Image
+
+import java.awt.PopupMenu
+import java.awt.SystemTray
+import java.awt.Toolkit
+import java.awt.TrayIcon
+import java.awt.MenuItem
+import java.awt.event.ActionEvent
 import java.awt.event.ActionListener
 import java.awt.event.MouseAdapter
 
@@ -31,7 +39,7 @@ import javax.swing.JOptionPane
 class ClientGUI
   include ActionListener
   
-  attr_accessor :login, :password, :server, :messages, :outMsg, :listModel, :logInWin, :mainWin, :msgWin
+  attr_accessor :login, :password, :server, :messages, :outMsg, :listModel, :logInWin, :mainWin, :msgWin, :trayIcon
 
 public
   
@@ -96,6 +104,7 @@ public
   end
   
   def openMainWindow(title)
+    self.addTrayIcon title, "images/tray.png"
     @logInWin.setVisible false
     
     @mainWin = JFrame.new
@@ -113,11 +122,17 @@ public
     @mainWin.add panel
     @mainWin.pack
     
-    @mainWin.setDefaultCloseOperation JFrame::EXIT_ON_CLOSE
+    @mainWin.setDefaultCloseOperation JFrame::DISPOSE_ON_CLOSE
     @mainWin.setSize 220, 460
     @mainWin.setLocationRelativeTo nil
-    @mainWin.setTitle title
+    @mainWin.setTitle "Chat ["+title+"]"
     @mainWin.setVisible true
+    
+    @mainWin.addWindowStateListener do |e|
+      if e.getNewState == JFrame::ICONIFIED
+        @mainWin.setVisible false
+      end
+    end
   end
   
   def openMsgWindow(title)
@@ -149,29 +164,69 @@ public
     @msgWin.setVisible true
   end
   
+  def addTrayIcon(title, pathToImage)
+    image = Toolkit.getDefaultToolkit.getImage pathToImage
+    
+    @trayIcon = TrayIcon.new image, "Chat ["+title+"]"
+    if SystemTray.isSupported
+      tray = SystemTray.getSystemTray
+
+      @trayIcon.setImageAutoSize true
+      @trayIcon.addMouseListener MouseAction.new
+      
+      popup = PopupMenu.new
+      aboutItem = MenuItem.new "About"
+      exitItem = MenuItem.new "Exit"
+      
+      aboutItem.addActionListener self
+      exitItem.addActionListener self
+      
+      popup.add aboutItem
+      popup.addSeparator
+      popup.add exitItem
+      
+      @trayIcon.setPopupMenu popup
+      
+      tray.add @trayIcon
+    else 
+      p "System tray is not supported"
+    end
+  end
+  
   def actionPerformed(ev)
     if ev.getActionCommand == "Sign in"
-      send ClientController.signIn @login.getText, @password.getText, @server.getText
+      ClientController.signIn @login.getText, @password.getText, @server.getText
     elsif ev.getActionCommand == "Register"
-      send ClientController.register
+      ClientController.register
     elsif ev.getActionCommand == "Send"
       msg = @outMsg.getText
       @outMsg.setText ""
-      send ClientController.sendMsg msg, @msgWin.getTitle
+      ClientController.sendMsg msg, @msgWin.getTitle
+    elsif ev.getActionCommand == "About"
+      p "About"
+    elsif ev.getActionCommand == "Exit"
+      java.lang.System.exit(0)
     else
-      raise "Wrong command"+ev.getActionCommand
+      raise "Wrong command "+ev.getActionCommand
     end
   end
 end
 
 class MouseAction < MouseAdapter
   
-    def mouseClicked e
-        sender = e.source
-        if e.getClickCount == 2 && sender.getSelectedIndex != -1
-          $app.openMsgWindow sender.getSelectedValue
-        end
-    end  
+  def mouseClicked e
+    sender = e.source
+      
+    if sender.class == Java::JavaxSwing::JList && SwingUtilities::isLeftMouseButton(e) && e.getClickCount == 2 && sender.getSelectedIndex != -1
+       $app.openMsgWindow sender.getSelectedValue
+       
+    elsif sender.class == Java::JavaAwt::TrayIcon
+      if SwingUtilities::isLeftMouseButton(e) && !$app.mainWin.isShowing
+          $app.mainWin.setVisible true
+          $app.mainWin.setState JFrame::NORMAL
+      end
+    end   
+  end  
 end  
 
 class ClientController
@@ -196,8 +251,10 @@ class ClientController
     ClientModel.send msg, receiver
   end
   
-  def self.receiveMsg
-    
+  def self.receiveMsg(msg, sender)
+    $app.addTrayIcon title, "images/newmsg.png"
+    $app.trayIcon.displayMessage "New message from "+sender, msg, TrayIcon::MessageType::INFO
+    str = "["+now.strftime("%-d.%-m.%Y %H:%M:%S")+"] "+JSON.parse(servMsg)["user"]+": "+JSON.parse(servMsg)["msg"]+"\n"
   end
   
   def self.refreshUserList(users)
@@ -211,12 +268,13 @@ class ClientController
     SwingUtilities.updateComponentTreeUI($app.mainWin)
   end
   
-  def self.addUserToList(user)
-    $app.listModel.addElement user
-    SwingUtilities.updateComponentTreeUI($app.mainWin)
+  def self.userConnected(user)
+    #$app.listModel.addElement user
+    #SwingUtilities.updateComponentTreeUI($app.mainWin)
+    $app.trayIcon.displayMessage "New connection", "User "+user+" connected", TrayIcon::MessageType::INFO
   end
   
-  def self.deleteUserFromList(user)
+  def self.userDisconnected(user)
     $app.listModel.removeElement user
     SwingUtilities.updateComponentTreeUI($app.mainWin)
   end
@@ -268,16 +326,16 @@ class ClientModel
       
     elsif JSON.parse(servMsg)["type"] == "message"
       now = DateTime.now
-      str = "["+now.strftime("%-d.%-m.%Y %H:%M:%S")+"] "+JSON.parse(servMsg)["user"]+": "+JSON.parse(servMsg)["msg"]+"\n"
-      ClientController.receiveMsg str
+      
+      ClientController.receiveMsg JSON.parse(servMsg)["user"], JSON.parse(servMsg)["msg"]
       result = true
       
     elsif JSON.parse(servMsg)["type"] == "newClient"
-      ClientController.addUserToList(JSON.parse(servMsg)["name"])
+      ClientController.userConnected(JSON.parse(servMsg)["name"])
       result = true
       
     elsif JSON.parse(servMsg)["type"] == "lostClient" 
-      ClientController.deleteUserFromList(JSON.parse(servMsg)["name"])
+      ClientController.userDisconnected(JSON.parse(servMsg)["name"])
       result = true
     end
     
@@ -285,11 +343,11 @@ class ClientModel
   end
 
   def self.send(msg, receiver)
-    p "Model.sendMsg"
     Thread.new do
       msgJSON = JSON.generate('type'=>'message', 'user' =>@username, 'msg'=>msg, 'to'=>receiver)
-      @socket.send msgJSON
-      return true
+      if @socket != nil
+        p @socket.send msgJSON
+      end
     end
   end
 end
