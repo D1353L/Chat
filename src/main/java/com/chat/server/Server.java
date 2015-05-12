@@ -63,25 +63,13 @@ class Server extends WebSocketServer
             
             else if("message".equals(fromClient.get("type")))
             {
-            	if("all".equals(fromClient.get("to")))
-            	{
-            		for (WebSocket cl : clients.keySet()){
-            			System.out.println("To "+cl.getRemoteSocketAddress()+" "+fromClient.toString());
-            			cl.send(fromClient.toString());
-            		}
-            	}
-            	else
-            	{
-            		for (WebSocket cl : clients.keySet())
-                    	if(clients.get(cl).equals(fromClient.get("to")))
-                    	{
-                    		System.out.println("To "+cl.getRemoteSocketAddress()+" "+fromClient.toString());
-                    		System.out.println("To "+client.getRemoteSocketAddress()+" "+fromClient.toString());
-                    		cl.send(fromClient.toString());
-                    		client.send(fromClient.toString());
-                    		break;
-                    	}
-            	}
+            	for (WebSocket cl : clients.keySet())
+            		if(clients.get(cl).equals(fromClient.get("to")))
+                    {
+                    	System.out.println("To "+cl.getRemoteSocketAddress()+" "+fromClient.toString());
+                    	cl.send(fromClient.toString());
+                    	break;
+                    }
             }
             else
             {
