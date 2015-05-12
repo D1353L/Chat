@@ -32,7 +32,7 @@ class Server extends WebSocketServer
         
         for (WebSocket client : clients.keySet()) {
         	if(client!=conn){
-        		System.out.println(String.format("To"+conn.getRemoteSocketAddress()+"{\type\": \"lostClient\", \"name\": \"%s\"}\r\n", clients.get(conn)));
+        		System.out.println(String.format("To"+client.getRemoteSocketAddress()+"{\"type\": \"lostClient\", \"name\": \"%s\"}\r\n", clients.get(conn)));
         		client.send(String.format("{\"type\": \"lostClient\", \"name\": \"%s\"}\r\n", clients.get(conn)));
         	}
         }
@@ -107,7 +107,7 @@ class Server extends WebSocketServer
             }catch(InterruptedException ex){Thread.currentThread().interrupt();}
             
             for (WebSocket cl : clients.keySet()){
-            	System.out.println(String.format("To "+client.getRemoteSocketAddress()+"{\"type\": \"newClient\", \"name\": \"%s\"}\r\n", login));
+            	System.out.println(String.format("To "+cl.getRemoteSocketAddress()+"{\"type\": \"newClient\", \"name\": \"%s\"}\r\n", login));
             	cl.send(String.format("{\"type\": \"newClient\", \"name\": \"%s\"}\r\n", login));
             }
 
