@@ -1,11 +1,14 @@
 package com.chat.server;
 
 import org.json.simple.*;
+
 import java.util.HashMap;
 import java.util.ArrayList;
+
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.java_websocket.WebSocket;
+import org.java_websocket.WebSocketImpl;
 
 import java.net.InetSocketAddress;
 
@@ -15,6 +18,7 @@ import org.java_websocket.server.WebSocketServer;
 class Server extends WebSocketServer
 {
 	private HashMap<WebSocket, String> clients = new HashMap<WebSocket, String>();
+	private PostgreSQLJDBC db = new PostgreSQLJDBC();
 
     public Server(InetSocketAddress address) {
     	super(address);
@@ -51,7 +55,7 @@ class Server extends WebSocketServer
 
     @Override
     public void onError(WebSocket conn, Exception ex) {
-        System.err.println("an error occured on connection " + conn.getRemoteSocketAddress()  + ":" + ex);
+    	ex.printStackTrace();
     }
     
     public void DataSort(WebSocket client, JSONObject fromClient)
@@ -61,6 +65,12 @@ class Server extends WebSocketServer
             if("userdata".equals(fromClient.get("type")))
             	LogIn(client, fromClient);
             
+            else if("regRequest".equals(fromClient.get("type")))
+            	Registration(client, (String)fromClient.get("login"), (String)fromClient.get("email"), (String)fromClient.get("pass"), (String)fromClient.get("fName"), (String)fromClient.get("sName"), (String)fromClient.get("position"));
+            
+            else if("changeUserData".equals(fromClient.get("type")))
+            	ChangeUserData(client, (String)fromClient.get("login"), (String)fromClient.get("email"), (String)fromClient.get("pass"), (String)fromClient.get("fName"), (String)fromClient.get("sName"), (String)fromClient.get("position"));
+            	
             else if("message".equals(fromClient.get("type")))
             {
             	for (WebSocket cl : clients.keySet())
@@ -85,10 +95,16 @@ class Server extends WebSocketServer
         String login=(String)json.get("login"),
         		pass=(String)json.get("pass");
         
-        if(("admin".equals(login) && "123".equals(pass)) || ("nik".equals(login) && "1".equals(pass)) || ("nik2".equals(login) && "1".equals(pass)))
+        if(db.IsCorrectCredentials(login, pass))
         {
         	System.out.println("To "+client.getRemoteSocketAddress()+"{\"type\":\"confirmation\",\"isCorrectCredentials\":\"true\"}\r\n");
             client.send(String.format("{\"type\":\"confirmation\",\"isCorrectCredentials\":\"true\",\"name\":\"%s\"}\r\n", login));
+            
+            try {
+                Thread.sleep(1200);
+            }catch(InterruptedException ex){Thread.currentThread().interrupt();}
+            
+            client.send(String.format("{\"type\":\"userData\",\"login\":\"%s\",\"email\":\"%s\",\"fName\":\"%s\",\"sName\":\"%s\",\"position\":\"%s\"}\r\n", login, db.getEmail(login), db.getFname(login), db.getSName(login), db.getPosition(login)));
             
             try {
                 Thread.sleep(1200);
@@ -115,10 +131,34 @@ class Server extends WebSocketServer
         }
     }
     
+    private void Registration(WebSocket client, String login, String email, String pass, String fName, String sName, String position)
+    {
+    	if(db.IsUserExist(login))
+    		client.send("{\"type\":\"regResponse\",\"conflictedData\":\"login\",\"exception\":\"\"}\r\n");
+    	
+    	else if(db.IsEmailExist(login))
+    		client.send("{\"type\":\"regResponse\",\"conflictedData\":\"email\",\"exception\":\"\"}\r\n");
+    	
+    	else{
+    		String dbResp = db.AddNewUser(login, email, pass, fName, sName, position);
+    		client.send(String.format("{\"type\":\"regResponse\",\"conflictedData\":\"\",\"exception\":\"%s\"}\r\n", dbResp));
+    	}
+    }
+    
+    private void ChangeUserData(WebSocket client, String login, String email, String pass, String fName, String sName, String position)
+    {
+    	db.setEmail(login, email);
+    	db.setFName(login, fName);
+    	db.setSName(login, sName);
+    	db.setPosition(login, position);
+    	if(pass != "") db.setPassword(login, pass);
+    	client.send(String.format("{\"type\":\"userData\",\"login\":\"%s\",\"email\":\"%s\",\"fName\":\"%s\",\"sName\":\"%s\",\"position\":\"%s\"}\r\n", login, db.getEmail(login), db.getFname(login), db.getSName(login), db.getPosition(login)));
+    }
+    
     public static void main(String[] args) {
         String host = "localhost";
         int port = 5168;
-
+        WebSocketImpl.DEBUG = true;
         WebSocketServer server = new Server(new InetSocketAddress(host, port));
         server.run();
     }
