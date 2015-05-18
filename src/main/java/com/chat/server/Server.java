@@ -5,6 +5,7 @@ import java.net.ServerSocket;
 import java.util.ArrayList;
 import org.json.simple.JSONObject;
 import org.json.simple.*;
+
 @SuppressWarnings("unchecked")
 
 
@@ -63,6 +64,9 @@ class Server extends Thread
             else if("changeUserData".equals(fromClient.get("type")))
             	ChangeUserData(client, (String)fromClient.get("login"), (String)fromClient.get("email"), (String)fromClient.get("pass"), (String)fromClient.get("fName"), (String)fromClient.get("sName"), (String)fromClient.get("position"));
             
+            else if("status".equals(fromClient.get("type")))
+            	ChangeStatus(client, (String)fromClient.get("status"));
+            	
             else if("message".equals(fromClient.get("type")))
             {
             	if("all".equals(fromClient.get("to")))
@@ -105,7 +109,16 @@ class Server extends Thread
         
         if(db.IsCorrectCredentials(login, pass))
         {
+        	for(ClientInstance item: Server.clients)
+        		if(item.login.equals(login))
+        		{
+        			request.put("isCorrectCredentials", "alreadyConnected");
+        			client.Write(request);
+        			return;
+        		}
+        	
         	client.login = login;
+        	client.status = "Online";
             request.put("isCorrectCredentials", "true");
             client.Write(request);
             
@@ -124,26 +137,31 @@ class Server extends Thread
             client.Write(userdata);
             
             JSONObject connections = new JSONObject();
-            JSONArray users = new JSONArray();
+            JSONArray onlineUsers = new JSONArray();
+            JSONArray busyUsers = new JSONArray();
             JSONObject newClient = new JSONObject();
                 
-            for(ClientInstance item: Server.clients)
-                users.add(item.login);
-              
-                connections.put("type", "connections");
-                connections.put("users", users);
-                newClient.put("type", "newClient");
-                newClient.put("name", login);
+            for(ClientInstance item: Server.clients){
+            	if("Online".equals(item.status)) onlineUsers.add(item.login);
+            	else if("Busy".equals(item.status)) busyUsers.add(item.login);
+            }
+
+            connections.put("type", "connections");
+            connections.put("online", onlineUsers);
+            connections.put("busy", busyUsers);
                 
-                for(ClientInstance item: Server.clients)
-                	if(!item.login.equals(client.login))
-                		item.Write(newClient);
+            newClient.put("type", "newClient");
+            newClient.put("name", login);
+                
+            for(ClientInstance item: Server.clients)
+                if(!item.login.equals(client.login))
+                	item.Write(newClient);
                     
-                try {
-                	Thread.sleep(1200);
-                }catch(InterruptedException ex){Thread.currentThread().interrupt();}
+            try {
+                Thread.sleep(1200);
+            }catch(InterruptedException ex){Thread.currentThread().interrupt();}
                     
-                client.Write(connections);
+            client.Write(connections);
         }
         else
         {
@@ -190,5 +208,31 @@ class Server extends Thread
         userdata.put("sName",db.getSName(login));
         userdata.put("position",db.getPosition(login));
     	client.Write(userdata);
+    }
+    
+    private static void ChangeStatus(ClientInstance client, String status)
+    {
+    	JSONObject response = new JSONObject();
+    	client.status = status;
+    	
+    	if("Online".equals(status))
+    	{
+    		response.put("type", "newClient");
+    		response.put("name", client.login);
+    	}
+    	else if("Offline".equals(status))
+    	{
+    		response.put("type", "lostClient");
+    		response.put("name", client.login);
+    	}
+    	else if("Busy".equals(status))
+    	{
+    		response.put("type", "busy");
+    		response.put("name", client.login);
+    	}
+    	
+    	for(ClientInstance item: Server.clients)
+        	if(!item.login.equals(client.login))
+        		item.Write(response);
     }
 }

@@ -16,12 +16,14 @@ class ClientInstance extends Thread
 {
     Socket socket;
     String login;
+    String status;
     BufferedReader in;
     PrintWriter out;
     
     public ClientInstance(int id, Socket socket) throws IOException {
         this.socket = socket;
         this.login="";
+        this.status="";
         
         in  = new BufferedReader(new InputStreamReader(this.socket.getInputStream()));
         out = new PrintWriter(this.socket.getOutputStream(),true);
