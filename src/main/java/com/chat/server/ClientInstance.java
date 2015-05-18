@@ -7,7 +7,6 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.net.SocketException;
 
-import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 @SuppressWarnings("unchecked")
@@ -16,14 +15,11 @@ import org.json.simple.parser.JSONParser;
 class ClientInstance extends Thread
 {
     Socket socket;
-    int id;
     String login;
-    boolean logged;
     BufferedReader in;
     PrintWriter out;
     
     public ClientInstance(int id, Socket socket) throws IOException {
-        this.id = id;
         this.socket = socket;
         this.login="";
         
@@ -47,7 +43,7 @@ class ClientInstance extends Thread
             
                 while((clientMsg = in.readLine()) != null)
                 {
-                    System.out.println("R  "+clientMsg);
+                    System.out.println("R "+this.login+"  "+clientMsg);
                     clientMsgJSON = (JSONObject)parser.parse(clientMsg);
                     Server.DataSort(this, clientMsgJSON, out);
                 }
@@ -74,26 +70,19 @@ class ClientInstance extends Thread
         Server.threads--;
         System.out.println("User "+this.login+" disconnected");
         System.out.println("Threads: "+Server.threads);
+                
+        JSONObject lostClient = new JSONObject();
+        lostClient.put("type", "lostClient");
+        lostClient.put("name", this.login);
         
         Server.clients.remove(this);
-        
-        JSONObject connections = new JSONObject();
-        JSONArray users = new JSONArray();
-        
         for(ClientInstance item: Server.clients)
-            users.add(item.login);
-        
-        connections.put("type", "connections");
-        connections.put("users", users);
-        
-        
-        for(ClientInstance item: Server.clients)
-            item.Write(connections);
+            item.Write(lostClient);
     }
     
     public void Write(JSONObject json)
     {
-        System.out.println("W  "+json);
+        System.out.println("W "+this.login+"  "+json);
         out.println(json);
     }
 }
