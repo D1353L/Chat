@@ -5,6 +5,7 @@ require 'date'
 include Java
 
 import java.awt.GridLayout
+import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.Font
 import java.awt.Image
@@ -27,10 +28,13 @@ import javax.swing.JTextField
 import javax.swing.JTextArea
 import javax.swing.JPasswordField
 import javax.swing.JButton
+import javax.swing.JComboBox
 import javax.swing.DefaultListModel
 import javax.swing.JList
 import javax.swing.JScrollPane
 import javax.swing.JOptionPane
+import javax.swing.ListCellRenderer
+import javax.swing.ImageIcon
 
 class MsgWindow
   include ActionListener
@@ -44,10 +48,10 @@ class MsgWindow
     frame = JFrame.new
    
     basic = JPanel.new
-    basic.setLayout GridLayout.new 2,1
+    basic.setLayout BorderLayout.new
     bottom = JPanel.new
     bottom.setLayout GridLayout.new 1,2
-    bottom.setPreferredSize(Dimension.new(350, 20))
+    bottom.setMaximumSize(Dimension.new(350, 20))
      
     font = Font.new "Verdana", Font::PLAIN, 16
 
@@ -56,12 +60,17 @@ class MsgWindow
     @outMsg = JTextField.new
     sendB = JButton.new "Send"
     sendB.setFont font
-    sendB.addActionListener self
     
-    basic.add @messages
+    sendB.addActionListener{ |e| 
+      msg = @outMsg.getText
+      @outMsg.setText ""
+      ClientController.sendMsg msg, @title, self
+    }
+    
+    basic.add @messages, BorderLayout::CENTER
     bottom.add @outMsg
     bottom.add sendB
-    basic.add bottom
+    basic.add bottom, BorderLayout::SOUTH
     frame.add basic
     frame.pack
     
@@ -69,14 +78,8 @@ class MsgWindow
     frame.setLocationRelativeTo nil
     frame.setTitle @title
     frame.setVisible true
-  end
-  
-  def actionPerformed(ev)
-    if ev.getActionCommand == "Send"
-      msg = @outMsg.getText
-      @outMsg.setText ""
-      ClientController.sendMsg msg, @title, self
-    end
+    
+    frame.add_window_listener(java.awt.event.WindowListener.impl {|m,*a| $msgWindows.delete self if m == :windowClosing })
   end
 end
 
@@ -85,12 +88,11 @@ class ClientGUI
   include ActionListener
   
   attr_accessor :login, :password, :server, :loginR, :emailR, :passwordR, :fNameR, :sNameR, :posR, :serverR,
-                :outMsg, :listModel, :logInWin, :regWin, :mainWin, :msgWindows, :trayIcon
+                :outMsg, :listModel, :logInWin, :regWin, :mainWin, :trayIcon, :list
 
 public
   
   def initialize
-    @msgWindows = Hash.new
     openLogInWindow
   end
       
@@ -118,16 +120,19 @@ public
     @password = JPasswordField.new
     @password.setFont font
     
-    @server = JTextField.new
+    @server = JTextField.new "localhost:5196"
     @server.setFont font
     
     loginB = JButton.new "Sign in"
     loginB.setFont font
-    loginB.addActionListener self
+    loginB.addActionListener{|e| ClientController.signIn @login.getText, @password.getText, @server.getText}
     
     register = JButton.new "Registration"
     register.setFont font
-    register.addActionListener self
+    register.addActionListener{|e| 
+      @logInWin.setVisible false
+      openRegistrationWindow
+    }
     
     basic.add loginL
     basic.add @login
@@ -203,11 +208,14 @@ public
     
     submitB = JButton.new "Submit"
     submitB.setFont font
-    submitB.addActionListener self
+    submitB.addActionListener{|e| ClientController.registration @loginR.getText, @emailR.getText, @passwordR.getText, @fNameR.getText, @sNameR.getText, @posR.getText, @serverR.getText}
     
     backB = JButton.new "Back"
     backB.setFont font
-    backB.addActionListener self
+    backB.addActionListener{|e|
+      @regWin.setVisible false
+      @logInWin.setVisible true
+    }
     
     basic.add loginL
     basic.add @loginR
@@ -277,7 +285,7 @@ public
     
     changeB = JButton.new "Change"
     changeB.setFont font
-    changeB.addActionListener self
+    changeB.addActionListener{|e| ClientController.changeUserData @emailD.getText, @newPasswordD.getText, @fNameD.getText, @sNameD.getText, @posD.getText}
     
     basic.add emailL
     basic.add @emailD
@@ -307,16 +315,26 @@ public
     
     @mainWin = JFrame.new
     panel = JPanel.new
-    panel.setLayout GridLayout.new 1,1
+    panel.setLayout BorderLayout.new
     
     @listModel= DefaultListModel.new
-    list = JList.new @listModel
+    @list = JList.new @listModel
     
-    list.addMouseListener MouseAction.new
-
+    statuses = ["Online", "Busy", "Offline"]
+    
+    @status = JComboBox.new
+    statuses.each do |status|
+      @status.add_item status
+    end
+    @status.add_action_listener do |e|
+      ClientController.changeStatus @status.get_selected_item
+    end
+    
+    @list.addMouseListener MouseAction.new
     pane = JScrollPane.new
-    pane.getViewport.add list
-    panel.add pane
+    pane.getViewport.add @list
+    panel.add pane, BorderLayout::CENTER
+    panel.add @status, BorderLayout::SOUTH
     @mainWin.add panel
     @mainWin.pack
     
@@ -348,9 +366,9 @@ public
       aboutItem = MenuItem.new "About"
       exitItem = MenuItem.new "Exit"
       
-      userData.addActionListener self
-      aboutItem.addActionListener self
-      exitItem.addActionListener self
+      userData.addActionListener{|e| openUserDataWindow ClientModel.get_username, ClientModel.get_email, ClientModel.get_fName, ClientModel.get_sName, ClientModel.get_position}
+      aboutItem.addActionListener{|e| ClientController.about}
+      exitItem.addActionListener{|e| java.lang.System.exit(0)}
       
       popup.add userData
       popup.add aboutItem
@@ -364,51 +382,24 @@ public
       p "System tray is not supported"
     end
   end
-  
-  def actionPerformed(ev)
-    if ev.getActionCommand == "Sign in"
-      ClientController.signIn @login.getText, @password.getText, @server.getText
-      
-    elsif ev.getActionCommand == "Registration"
-      @logInWin.setVisible false
-      openRegistrationWindow
-      
-    elsif ev.getActionCommand == "Back"
-      @regWin.setVisible false
-      @logInWin.setVisible true
-      
-    elsif ev.getActionCommand == "Submit"
-      ClientController.registration @loginR.getText, @emailR.getText, @passwordR.getText, @fNameR.getText, @sNameR.getText, @posR.getText, @serverR.getText
-      
-    elsif ev.getActionCommand == "User data"
-      openUserDataWindow ClientModel.get_username, ClientModel.get_email, ClientModel.get_fName, ClientModel.get_sName, ClientModel.get_position
-      
-    elsif ev.getActionCommand == "Change"
-      ClientController.changeUserData @emailD.getText, @newPasswordD.getText, @fNameD.getText, @sNameD.getText, @posD.getText
-            
-    elsif ev.getActionCommand == "About"
-      p "About"
-      
-    elsif ev.getActionCommand == "Exit"
-      java.lang.System.exit(0)
-      
-    else
-      raise "Wrong command "+ev.getActionCommand
-    end
-  end
 end
 
 class MouseAction < MouseAdapter
   
   def mouseClicked e
-    sender = e.source
+    component = e.source
       
-    if sender.class == Java::JavaxSwing::JList && SwingUtilities::isLeftMouseButton(e) && e.getClickCount == 2 && sender.getSelectedIndex != -1
-       w = MsgWindow.new sender.getSelectedValue
-       $msgWindows.push w
-       w.open
+    if component.class == Java::JavaxSwing::JList && SwingUtilities::isLeftMouseButton(e) && e.getClickCount == 2 && component.getSelectedIndex != -1
+      $msgWindows.each do |win|
+        if win.title == component.getSelectedValue
+          return
+        end
+      end
+      w = MsgWindow.new component.getSelectedValue
+      $msgWindows.push w
+      w.open
        
-    elsif sender.class == Java::JavaAwt::TrayIcon
+    elsif component.class == Java::JavaAwt::TrayIcon
       if SwingUtilities::isLeftMouseButton(e) && !$app.mainWin.isShowing
           $app.mainWin.setVisible true
           $app.mainWin.setState JFrame::NORMAL
@@ -417,6 +408,37 @@ class MouseAction < MouseAdapter
   end  
 end  
 
+class ImageListCellRenderer < Java::javax::swing::JLabel
+  include Java::javax.swing.ListCellRenderer
+  
+  def initialize(status)
+    @imgPath = "images/"
+    if status == "Online"
+      @imgPath = @imgPath+"online.gif"
+    elsif status == "Busy"
+      @imgPath = @imgPath+"busy.gif"
+    end
+  end
+
+  def getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+    label = JLabel.new
+    label.setIcon(ImageIcon.new(@imgPath))
+    label.setText(value)
+    label.setHorizontalTextPosition(JLabel::RIGHT)
+    if isSelected
+      label.setBackground list.getSelectionBackground
+      label.setForeground list.getSelectionForeground
+    else
+      label.setBackground list.getBackground
+      label.setForeground list.getForeground
+    end
+    label.setEnabled list.isEnabled
+    label.setFont list.getFont
+    label.setOpaque true
+    return label
+   end
+end
+
 class ClientController
   
   def self.signIn(login, pass, server)
@@ -424,11 +446,19 @@ class ClientController
   end
   
   def self.serverNotResponse
-    JOptionPane.showMessageDialog nil, "Server not response", "Log in error", JOptionPane::ERROR_MESSAGE
+    JOptionPane.showMessageDialog nil, "Server not response", "Log in failed", JOptionPane::ERROR_MESSAGE
   end
   
   def self.accessDenied
-    JOptionPane.showMessageDialog nil, "Log in filed, provided credentials are incorrect", "Log in error", JOptionPane::ERROR_MESSAGE
+    JOptionPane.showMessageDialog nil, "Log in filed, provided credentials are incorrect", "Log in failed", JOptionPane::ERROR_MESSAGE
+  end
+  
+  def self.alreadyConnected(username)
+    JOptionPane.showMessageDialog nil, "User "+username+" is already connected", "Log in failed", JOptionPane::ERROR_MESSAGE
+  end
+  
+  def self.about
+    JOptionPane.showMessageDialog nil, "Client-server chat\nCreated by Nikita Mogyl'ov", "About", JOptionPane::INFORMATION_MESSAGE
   end
   
   def self.accessGranted(username)
@@ -485,7 +515,7 @@ class ClientController
   def self.receiveMsg(msg, sender)
     str = "["+DateTime.now.strftime("%-d.%-m.%Y %H:%M:%S")+"] "+sender+": "+msg+"\n"
     $msgWindows.each do |win|
-      if win.getTitle == sender
+      if win.title == sender
         win.messages.append str
         return
       end
@@ -513,18 +543,41 @@ class ClientController
     end
   end
   
+  def self.changeStatus(status)
+    ClientModel.changeStatus(status)
+  end
+  
+  def self.setUserBusy(user)
+    $app.list.setCellRenderer(ImageListCellRenderer.new "Busy")
+    $app.listModel.removeElement user
+    $app.listModel.addElement user
+    SwingUtilities.updateComponentTreeUI($app.mainWin)
+  end
+  
   def self.refreshUserList(users)
     $app.listModel.removeAllElements
+    online = JSON.parse(users)["online"]
+    busy = JSON.parse(users)["busy"]
     
-      users.sort.each do |user|
-        if user != ClientModel.get_username
-          $app.listModel.addElement user
-        end
+    online.each do |user|
+      if user != ClientModel.get_username
+        $app.list.setCellRenderer(ImageListCellRenderer.new "Online")
+        $app.listModel.addElement user
       end
+    end
+    
+    busy.each do |user|
+      if user != ClientModel.get_username
+        $app.list.setCellRenderer(ImageListCellRenderer.new "Busy")
+        $app.listModel.addElement user
+      end
+    end
     SwingUtilities.updateComponentTreeUI($app.mainWin)
   end
   
   def self.userConnected(user)
+    $app.list.setCellRenderer(ImageListCellRenderer.new "Online")
+    $app.listModel.removeElement user
     $app.listModel.addElement user
     SwingUtilities.updateComponentTreeUI($app.mainWin)
     $app.trayIcon.displayMessage "New connection", "User "+user+" connected", TrayIcon::MessageType::INFO
@@ -541,16 +594,17 @@ class ClientModel
 
   def self.connect(login, pass, server)
     begin  
-      @socket = TCPSocket.new('localhost',5196)
+      @socket = TCPSocket.new(server.split(':')[0], server.split(':')[1])
     rescue Errno::ECONNREFUSED  
       ClientController.serverNotResponse
+      return
     end   
    
     userdataJSON = JSON.generate('type'=>'userdata', 'login' =>login, 'pass'=>pass)   
     @socket.puts userdataJSON   
     Thread.new do
       while(true)
-        p @serverMsg=@socket.recv(5000)
+        @serverMsg=@socket.recv(5000)
         self.data_sort(@serverMsg)
       end
     end
@@ -558,7 +612,7 @@ class ClientModel
   
   def self.registration(login, email, pass, fName, sName, pos, server)
     begin  
-      @socket = TCPSocket.new('localhost', 5196)
+      @socket = TCPSocket.new(server.split(':')[0], server.split(':')[1])
     rescue Errno::ECONNREFUSED  
       ClientController.serverNotResponse  
     end   
@@ -567,7 +621,7 @@ class ClientModel
     @socket.puts userdataJSON
     Thread.new do
       while(true)
-        p @serverMsg=@socket.recv(5000)
+        @serverMsg=@socket.recv(5000)
         self.data_sort(@serverMsg)
       end
     end
@@ -580,6 +634,9 @@ class ClientModel
       if JSON.parse(servMsg)["isCorrectCredentials"] == "true"
         @username=JSON.parse(servMsg)["name"]
         ClientController.accessGranted @username
+      elsif JSON.parse(servMsg)["isCorrectCredentials"] == "alreadyConnected"
+        @socket.close
+        ClientController.alreadyConnected JSON.parse(servMsg)["name"]
       else
         @socket.close
         ClientController.accessDenied
@@ -596,7 +653,7 @@ class ClientModel
       result = true
       
     elsif JSON.parse(servMsg)["type"] == "connections"
-      ClientController.refreshUserList(JSON.parse(servMsg)["users"])
+      ClientController.refreshUserList(servMsg)
       result = true
       
     elsif JSON.parse(servMsg)["type"] == "message"
@@ -609,6 +666,10 @@ class ClientModel
       
     elsif JSON.parse(servMsg)["type"] == "lostClient" 
       ClientController.userDisconnected(JSON.parse(servMsg)["name"])
+      result = true
+      
+    elsif JSON.parse(servMsg)["type"] == "busy"
+      ClientController.setUserBusy(JSON.parse(servMsg)["name"])
       result = true
       
     elsif JSON.parse(servMsg)["type"] == "userData"
@@ -625,6 +686,11 @@ class ClientModel
   def self.changeUserData(email, pass, fName, sName, pos)
     userdataJSON = JSON.generate('type'=>'changeUserData', 'login' =>@username, 'email' =>email, 'pass'=>pass, 'fName'=>fName, 'sName'=>sName, 'position'=>pos)   
     @socket.puts userdataJSON
+  end
+  
+  def self.changeStatus(status)
+    statusJSON = JSON.generate('type'=>'status', 'status'=>status)
+    @socket.puts statusJSON
   end
 
   def self.send(msg, receiver)
