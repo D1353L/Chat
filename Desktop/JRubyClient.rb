@@ -449,6 +449,10 @@ class ClientController
     JOptionPane.showMessageDialog nil, "Server not response", "Log in failed", JOptionPane::ERROR_MESSAGE
   end
   
+  def self.wrongServer
+    JOptionPane.showMessageDialog nil, "Wrong server address", "Log in failed", JOptionPane::ERROR_MESSAGE
+  end
+  
   def self.accessDenied
     JOptionPane.showMessageDialog nil, "Log in filed, provided credentials are incorrect", "Log in failed", JOptionPane::ERROR_MESSAGE
   end
@@ -595,6 +599,8 @@ class ClientModel
   def self.connect(login, pass, server)
     begin  
       @socket = TCPSocket.new(server.split(':')[0], server.split(':')[1])
+    rescue TypeError
+      ClientController.wrongServer
     rescue Errno::ECONNREFUSED  
       ClientController.serverNotResponse
       return
@@ -613,6 +619,8 @@ class ClientModel
   def self.registration(login, email, pass, fName, sName, pos, server)
     begin  
       @socket = TCPSocket.new(server.split(':')[0], server.split(':')[1])
+    rescue TypeError
+      ClientController.wrongServer
     rescue Errno::ECONNREFUSED  
       ClientController.serverNotResponse  
     end   
