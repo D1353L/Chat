@@ -1,40 +1,34 @@
 package com.chat.server;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.util.ArrayList;
 import org.json.simple.JSONObject;
 import org.json.simple.*;
+import java.util.*;
+import java.text.*;
 
 @SuppressWarnings("unchecked")
 
 
 class Server extends Thread
 {
-    
     final static int port=5196;
     static ArrayList<ClientInstance> clients=new ArrayList<ClientInstance>();
     static PostgreSQLJDBC db = new PostgreSQLJDBC();
-    static int threads=0;
 
     public static void main(String args[])
     {
         ServerSocket server=null;
         try
         {
-
             server = new ServerSocket(port);
-
             System.out.println("server is started");
-            
 
-            // ожидание клиента
+            //wait for client
             while(true)
             {
-                // после подключения клиента, добавляется в массив и выделяется отдельный поток
-                clients.add(new ClientInstance(threads, server.accept()));
-                threads++;
-                System.out.println("Client - "+threads);
+                //after connect, client is allocated to a separate thread
+                clients.add(new ClientInstance(server.accept()));
                 Thread.sleep(100);
             }
         }
@@ -48,10 +42,9 @@ class Server extends Thread
             {System.out.println("main - IOException: "+io);}
         }
     }
-
    
-    
-    public static void DataSort(ClientInstance client, JSONObject fromClient, PrintWriter out)
+    //Method for sorting received data
+    public static void DataSort(ClientInstance client, JSONObject fromClient)
     {
         try
         {
@@ -66,9 +59,13 @@ class Server extends Thread
             
             else if("status".equals(fromClient.get("type")))
             	ChangeStatus(client, (String)fromClient.get("status"));
+            
+            else if("getMessages".equals(fromClient.get("type")))
+            	GetMessages(client, (String)fromClient.get("user"));
             	
             else if("message".equals(fromClient.get("type")))
             {
+            	//Sending message to all clients
             	if("all".equals(fromClient.get("to")))
             	{
             		for(ClientInstance item: Server.clients)
@@ -78,11 +75,17 @@ class Server extends Thread
             	}
             	else
             	{
+            		//Sending message to a separate client
             		for(ClientInstance item: Server.clients)
             		{
             			if(item.login.equals(fromClient.get("to")))
             			{
             				item.Write(fromClient);
+            				
+            				Date dNow = new Date();
+            				SimpleDateFormat ft = new SimpleDateFormat("dd.M.yyyy HH:mm:ss");
+            				db.addMessage(client.login, item.login, "["+ft.format(dNow)+"] "+client.login+": "+fromClient.get("msg").toString());
+
             				break;
             			}
             		}
@@ -100,9 +103,6 @@ class Server extends Thread
     private static void LogIn(ClientInstance client, JSONObject json)
     {
         String login=(String)json.get("login"), pass=(String)json.get("pass");
-        
-        System.out.println(login+'\n'+pass);
-        
         JSONObject request = new JSONObject();
         request.put("type", "confirmation");
         request.put("name", login);
@@ -117,11 +117,13 @@ class Server extends Thread
         			return;
         		}
         	
+        	System.out.println("User "+login+" connected");
         	client.login = login;
-        	client.status = "Online";
+        	client.status = "online";
             request.put("isCorrectCredentials", "true");
             client.Write(request);
             
+            //Sending user data from DB to client
             JSONObject userdata = new JSONObject();
             userdata.put("type", "userData");
             userdata.put("login", login);
@@ -135,33 +137,29 @@ class Server extends Thread
             }catch(InterruptedException ex){Thread.currentThread().interrupt();}
             
             client.Write(userdata);
-            
+
+            //Sending list of connected (online and busy) users to client
             JSONObject connections = new JSONObject();
-            JSONArray onlineUsers = new JSONArray();
-            JSONArray busyUsers = new JSONArray();
+            JSONArray users = new JSONArray();
             JSONObject newClient = new JSONObject();
-                
-            for(ClientInstance item: Server.clients){
-            	if("Online".equals(item.status)) onlineUsers.add(item.login);
-            	else if("Busy".equals(item.status)) busyUsers.add(item.login);
-            }
+            
+            for(ClientInstance item: Server.clients)
+            	users.add(item.login+":"+item.status);
 
             connections.put("type", "connections");
-            connections.put("online", onlineUsers);
-            connections.put("busy", busyUsers);
-                
-            newClient.put("type", "newClient");
-            newClient.put("name", login);
-                
-            for(ClientInstance item: Server.clients)
-                if(!item.login.equals(client.login))
-                	item.Write(newClient);
-                    
+            connections.put("users", users);
+                   
             try {
                 Thread.sleep(1200);
             }catch(InterruptedException ex){Thread.currentThread().interrupt();}
                     
             client.Write(connections);
+            
+            newClient.put("type", "newClient");
+            newClient.put("name", client.login+":"+client.status);
+            for(ClientInstance item: Server.clients)
+            	if(!item.login.equals(client.login)) item.Write(newClient);
+            
         }
         else
         {
@@ -188,7 +186,6 @@ class Server extends Thread
     		regResp.put("conflictedData", "email");
     		regResp.put("exception", dbResp);
     	}
-    	
     	client.Write(regResp);
     }
     
@@ -210,29 +207,39 @@ class Server extends Thread
     	client.Write(userdata);
     }
     
-    private static void ChangeStatus(ClientInstance client, String status)
+    public static void ChangeStatus(ClientInstance client, String status)
     {
     	JSONObject response = new JSONObject();
-    	client.status = status;
     	
-    	if("Online".equals(status))
+    	if("online".equals(status))
     	{
     		response.put("type", "newClient");
-    		response.put("name", client.login);
+    		if("offline".equals(client.status))
+    			response.put("name", client.login+":"+status);
+    		else response.put("name", client.login+":"+client.status);
     	}
-    	else if("Offline".equals(status))
+    	else if("offline".equals(status))
     	{
     		response.put("type", "lostClient");
-    		response.put("name", client.login);
+    		response.put("name", client.login+":"+client.status);
     	}
-    	else if("Busy".equals(status))
+    	else if("busy".equals(status))
     	{
     		response.put("type", "busy");
-    		response.put("name", client.login);
+    		response.put("name", client.login+":"+client.status);
     	}
+    	client.status = status;
     	
     	for(ClientInstance item: Server.clients)
-        	if(!item.login.equals(client.login))
-        		item.Write(response);
+        	if(!item.login.equals(client.login)) item.Write(response);
+    }
+    
+    public static void GetMessages(ClientInstance client, String user)
+    {
+    	JSONObject messages = new JSONObject();
+    	messages.put("type", "messages");
+    	messages.put("messages", db.getMessages(client.login, user));
+    	messages.put("user", user);
+    	client.Write(messages);
     }
 }

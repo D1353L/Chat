@@ -9,7 +9,7 @@ import java.net.SocketException;
 
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
-@SuppressWarnings("unchecked")
+
 
 
 class ClientInstance extends Thread
@@ -20,19 +20,18 @@ class ClientInstance extends Thread
     BufferedReader in;
     PrintWriter out;
     
-    public ClientInstance(int id, Socket socket) throws IOException {
+    public ClientInstance(Socket socket) throws IOException {
         this.socket = socket;
         this.login="";
         this.status="";
         
         in  = new BufferedReader(new InputStreamReader(this.socket.getInputStream()));
         out = new PrintWriter(this.socket.getOutputStream(),true);
-
         
         setDaemon(true);
         setPriority(NORM_PRIORITY);
         start();
-        //управление переходит методу run()
+        //control switches to the method run()
     }
 
     public void run()
@@ -43,12 +42,13 @@ class ClientInstance extends Thread
             JSONObject clientMsgJSON = new JSONObject();
             JSONParser parser=new JSONParser();
             
-                while((clientMsg = in.readLine()) != null)
-                {
-                    System.out.println("R "+this.login+"  "+clientMsg);
-                    clientMsgJSON = (JSONObject)parser.parse(clientMsg);
-                    Server.DataSort(this, clientMsgJSON, out);
-                }
+            //waiting for incoming message from current client
+            while((clientMsg = in.readLine()) != null)
+            {
+                System.out.println("R "+this.login+"  "+clientMsg);
+                clientMsgJSON = (JSONObject)parser.parse(clientMsg);
+                Server.DataSort(this, clientMsgJSON);
+            }
             
             socket.close();
             DisconnectThisUser();
@@ -69,17 +69,9 @@ class ClientInstance extends Thread
     
     public void DisconnectThisUser()
     {
-        Server.threads--;
-        System.out.println("User "+this.login+" disconnected");
-        System.out.println("Threads: "+Server.threads);
-                
-        JSONObject lostClient = new JSONObject();
-        lostClient.put("type", "lostClient");
-        lostClient.put("name", this.login);
-        
+        System.out.println("User "+this.login+" disconnected");      
+        Server.ChangeStatus(this, "offline");
         Server.clients.remove(this);
-        for(ClientInstance item: Server.clients)
-            item.Write(lostClient);
     }
     
     public void Write(JSONObject json)

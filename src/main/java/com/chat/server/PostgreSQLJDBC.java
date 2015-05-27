@@ -225,4 +225,31 @@ public class PostgreSQLJDBC {
 		   }catch(Exception e){System.err.println( e.getClass().getName()+": "+ e.getMessage()); return e.getMessage();}
 	   }
 	   
+	   public String addMessage(String sender, String receiver, String message)
+	   {
+		   try {
+			   stmt = c.createStatement();
+			   String sql = String.format("INSERT INTO messages VALUES ('%s', '%s', '%s');", sender, receiver, message);
+			   stmt.executeUpdate(sql);
+			   stmt.close();
+			   c.commit();
+			   return "";
+		   }catch(Exception e){System.err.println( e.getClass().getName()+": "+ e.getMessage()); return e.getMessage();}
+	   }
+	   
+	   public String getMessages(String user1, String user2)
+	   {
+		   try {
+			   stmt = c.createStatement();
+			   ResultSet rs = stmt.executeQuery( "SELECT message FROM messages WHERE (sender = '"+user1+"' AND receiver = '"+user2+"') OR (sender = '"+user2+"' AND receiver = '"+user1+"');" );
+			   
+			   String msg = "";
+			   while (rs.next()) msg = msg+rs.getString("message")+"\n";
+			   
+			   rs.close();
+			   stmt.close();
+			   return msg;
+		   }catch(Exception e){System.err.println( e.getClass().getName()+": "+ e.getMessage() ); return "";}
+	   }
+	   
 }
