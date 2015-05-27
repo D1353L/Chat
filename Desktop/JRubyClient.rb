@@ -20,6 +20,8 @@ import java.awt.event.ActionListener
 import java.awt.event.MouseAdapter
 
 import javax.swing.SwingUtilities
+import javax.swing.JPopupMenu
+import javax.swing.JMenuItem
 import javax.swing.JFrame
 import javax.swing.Box
 import javax.swing.JPanel
@@ -67,7 +69,9 @@ class MsgWindow
       ClientController.sendMsg msg, @title, self
     }
     
-    basic.add @messages, BorderLayout::CENTER
+    pane = JScrollPane.new
+    pane.getViewport.add @messages
+    basic.add pane, BorderLayout::CENTER
     bottom.add @outMsg
     bottom.add sendB
     basic.add bottom, BorderLayout::SOUTH
@@ -83,12 +87,45 @@ class MsgWindow
   end
 end
 
+class HistoryWindow
+  attr_accessor :frame, :messages, :title
+  
+  def initialize(title)
+    @title="History["+title+"]"
+  end
+  
+  def open
+    frame = JFrame.new
+   
+    panel = JPanel.new
+    panel.setLayout BorderLayout.new
+     
+    font = Font.new "Verdana", Font::PLAIN, 16
 
+    @messages = JTextArea.new   
+    @messages.setEditable false
+    
+    pane = JScrollPane.new
+    pane.getViewport.add @messages
+    panel.add pane, BorderLayout::CENTER
+    frame.add panel
+    frame.pack
+    
+    frame.setSize 350, 350
+    frame.setLocationRelativeTo nil
+    frame.setTitle @title
+    frame.setVisible true
+    
+    frame.add_window_listener(java.awt.event.WindowListener.impl {|m,*a| $historyWindows.delete self if m == :windowClosing })
+  end
+end
+
+#Class for Graphical user interface(GUI)
 class ClientGUI
   include ActionListener
   
   attr_accessor :login, :password, :server, :loginR, :emailR, :passwordR, :fNameR, :sNameR, :posR, :serverR,
-                :outMsg, :listModel, :logInWin, :regWin, :mainWin, :trayIcon, :list
+                :outMsg, :listModel, :logInWin, :regWin, :mainWin, :trayIcon, :list, :listPopup
 
 public
   
@@ -285,7 +322,7 @@ public
     
     changeB = JButton.new "Change"
     changeB.setFont font
-    changeB.addActionListener{|e| ClientController.changeUserData @emailD.getText, @newPasswordD.getText, @fNameD.getText, @sNameD.getText, @posD.getText}
+    changeB.addActionListener{|e| ClientController.changeUserData(@emailD.getText, @newPasswordD.getText, @fNameD.getText, @sNameD.getText, @posD.getText)}
     
     basic.add emailL
     basic.add @emailD
@@ -327,8 +364,16 @@ public
       @status.add_item status
     end
     @status.add_action_listener do |e|
-      ClientController.changeStatus @status.get_selected_item
+      ClientController.changeStatus @status.get_selected_item.downcase!
     end
+    
+    @listPopup = JPopupMenu.new
+    userData =  JMenuItem.new "User data"
+    history =  JMenuItem.new "History"
+    @listPopup.add userData
+    @listPopup.add history
+    
+    history.addActionListener{|e| (!@list.isSelectionEmpty) ? (ClientController.requestMsgHistory(@list.getSelectedValue.split(':')[0])) : (false)}
     
     @list.addMouseListener MouseAction.new
     pane = JScrollPane.new
@@ -361,8 +406,8 @@ public
       @trayIcon.setImageAutoSize true
       @trayIcon.addMouseListener MouseAction.new
       
-      popup = PopupMenu.new
-      userData =  MenuItem.new "User data"
+      trayPopup = PopupMenu.new
+      userData = MenuItem.new "User data"
       aboutItem = MenuItem.new "About"
       exitItem = MenuItem.new "Exit"
       
@@ -370,12 +415,12 @@ public
       aboutItem.addActionListener{|e| ClientController.about}
       exitItem.addActionListener{|e| java.lang.System.exit(0)}
       
-      popup.add userData
-      popup.add aboutItem
-      popup.addSeparator
-      popup.add exitItem
+      trayPopup.add userData
+      trayPopup.add aboutItem
+      trayPopup.addSeparator
+      trayPopup.add exitItem
       
-      @trayIcon.setPopupMenu popup
+      @trayIcon.setPopupMenu trayPopup
       
       tray.add @trayIcon
     else 
@@ -384,21 +429,30 @@ public
   end
 end
 
+#Class for handling mouse events
 class MouseAction < MouseAdapter
   
   def mouseClicked e
     component = e.source
-      
-    if component.class == Java::JavaxSwing::JList && SwingUtilities::isLeftMouseButton(e) && e.getClickCount == 2 && component.getSelectedIndex != -1
-      $msgWindows.each do |win|
-        if win.title == component.getSelectedValue
-          return
+    
+    #Dblclick on user from list
+    if component.class == Java::JavaxSwing::JList
+      if SwingUtilities::isLeftMouseButton(e) && e.getClickCount == 2 && !component.isSelectionEmpty()
+        #Checking if window already exist
+        $msgWindows.each do |win|
+          if win.title == component.getSelectedValue.split(':')[0]
+            return
+          end
         end
+        w = MsgWindow.new component.getSelectedValue.split(':')[0]
+        $msgWindows.push w
+        w.open
+      elsif SwingUtilities::isRightMouseButton(e)
+        component.setSelectedIndex(component.locationToIndex e.getPoint)
+        $app.listPopup.show(component, e.getX, e.getY)
       end
-      w = MsgWindow.new component.getSelectedValue
-      $msgWindows.push w
-      w.open
-       
+      
+    #Click on tray icon
     elsif component.class == Java::JavaAwt::TrayIcon
       if SwingUtilities::isLeftMouseButton(e) && !$app.mainWin.isShowing
           $app.mainWin.setVisible true
@@ -408,22 +462,14 @@ class MouseAction < MouseAdapter
   end  
 end  
 
+#Class for adding images to list
 class ImageListCellRenderer < Java::javax::swing::JLabel
   include Java::javax.swing.ListCellRenderer
-  
-  def initialize(status)
-    @imgPath = "images/"
-    if status == "Online"
-      @imgPath = @imgPath+"online.gif"
-    elsif status == "Busy"
-      @imgPath = @imgPath+"busy.gif"
-    end
-  end
 
   def getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
     label = JLabel.new
-    label.setIcon(ImageIcon.new(@imgPath))
-    label.setText(value)
+    label.setIcon(ImageIcon.new("images/"+value.split(':')[1]+".gif"))
+    label.setText(value.split(':')[0])
     label.setHorizontalTextPosition(JLabel::RIGHT)
     if isSelected
       label.setBackground list.getSelectionBackground
@@ -439,6 +485,7 @@ class ImageListCellRenderer < Java::javax::swing::JLabel
    end
 end
 
+#Class for connection with ClientGUI and CLientModel
 class ClientController
   
   def self.signIn(login, pass, server)
@@ -476,7 +523,7 @@ class ClientController
     elsif email <= " " || !email.match(/\A[^@\s]+@([^@\s]+\.)+[^@\s]+\z/)
       JOptionPane.showMessageDialog nil, "Wrong email", "Wrong credentials", JOptionPane::ERROR_MESSAGE
       
-    elsif pass <= " "
+    elsif pass == ""
       JOptionPane.showMessageDialog nil, "Password should not be empty", "Wrong credentials", JOptionPane::ERROR_MESSAGE
       
     elsif fName <= " " || /\d+/.match(fName)
@@ -547,32 +594,40 @@ class ClientController
     end
   end
   
+  def self.requestMsgHistory(user)
+    ClientModel.requestMsgHistory(user)
+  end
+
+  def self.showMsgHistory(user, msgs)
+    $historyWindows.each do |win|
+      if win.title == "History["+user+"]"
+        win.messages.append str
+        return
+      end
+    end
+    w = HistoryWindow.new user
+    $historyWindows.push w
+    w.open
+    w.messages.append msgs
+  end
+  
   def self.changeStatus(status)
     ClientModel.changeStatus(status)
   end
   
   def self.setUserBusy(user)
-    $app.list.setCellRenderer(ImageListCellRenderer.new "Busy")
+    $app.list.setCellRenderer(ImageListCellRenderer.new)
     $app.listModel.removeElement user
-    $app.listModel.addElement user
+    $app.listModel.addElement user.split(":")[0]+":busy"
     SwingUtilities.updateComponentTreeUI($app.mainWin)
   end
   
   def self.refreshUserList(users)
     $app.listModel.removeAllElements
-    online = JSON.parse(users)["online"]
-    busy = JSON.parse(users)["busy"]
-    
-    online.each do |user|
-      if user != ClientModel.get_username
-        $app.list.setCellRenderer(ImageListCellRenderer.new "Online")
-        $app.listModel.addElement user
-      end
-    end
-    
-    busy.each do |user|
-      if user != ClientModel.get_username
-        $app.list.setCellRenderer(ImageListCellRenderer.new "Busy")
+
+    users.each do |user|
+      if user.split(':')[0] != ClientModel.get_username
+        $app.list.setCellRenderer(ImageListCellRenderer.new)
         $app.listModel.addElement user
       end
     end
@@ -580,9 +635,9 @@ class ClientController
   end
   
   def self.userConnected(user)
-    $app.list.setCellRenderer(ImageListCellRenderer.new "Online")
+    $app.list.setCellRenderer(ImageListCellRenderer.new)
     $app.listModel.removeElement user
-    $app.listModel.addElement user
+    $app.listModel.addElement user.split(':')[0]+":online"
     SwingUtilities.updateComponentTreeUI($app.mainWin)
     $app.trayIcon.displayMessage "New connection", "User "+user+" connected", TrayIcon::MessageType::INFO
   end
@@ -596,11 +651,13 @@ end
 class ClientModel
   attr_accessor :socket, :serverMsg, :connections, :username, :email, :fName, :sName, :position 
 
+  #server - <IP>:<Port>
   def self.connect(login, pass, server)
     begin  
       @socket = TCPSocket.new(server.split(':')[0], server.split(':')[1])
     rescue TypeError
       ClientController.wrongServer
+      return
     rescue Errno::ECONNREFUSED  
       ClientController.serverNotResponse
       return
@@ -616,13 +673,16 @@ class ClientModel
     end
   end
   
+  #server - <IP>:<Port>
   def self.registration(login, email, pass, fName, sName, pos, server)
     begin  
       @socket = TCPSocket.new(server.split(':')[0], server.split(':')[1])
     rescue TypeError
       ClientController.wrongServer
+      return
     rescue Errno::ECONNREFUSED  
-      ClientController.serverNotResponse  
+      ClientController.serverNotResponse 
+      return 
     end   
    
     userdataJSON = JSON.generate('type'=>'regRequest', 'login' =>login, 'email' =>email, 'pass'=>pass, 'fName'=>fName, 'sName'=>sName, 'position'=>pos)   
@@ -635,6 +695,7 @@ class ClientModel
     end
   end
 
+  #Method for sorting received messages
   def self.data_sort(servMsg)
     result = false
     
@@ -661,11 +722,15 @@ class ClientModel
       result = true
       
     elsif JSON.parse(servMsg)["type"] == "connections"
-      ClientController.refreshUserList(servMsg)
+      ClientController.refreshUserList(JSON.parse(servMsg)["users"])
       result = true
       
     elsif JSON.parse(servMsg)["type"] == "message"
       ClientController.receiveMsg JSON.parse(servMsg)["msg"], JSON.parse(servMsg)["user"] 
+      result = true
+      
+    elsif JSON.parse(servMsg)["type"] == "messages"
+      ClientController.showMsgHistory JSON.parse(servMsg)["user"], JSON.parse(servMsg)["messages"]
       result = true
       
     elsif JSON.parse(servMsg)["type"] == "newClient"
@@ -691,16 +756,24 @@ class ClientModel
     return result
   end
   
+  #Request for change user data on the server 
   def self.changeUserData(email, pass, fName, sName, pos)
     userdataJSON = JSON.generate('type'=>'changeUserData', 'login' =>@username, 'email' =>email, 'pass'=>pass, 'fName'=>fName, 'sName'=>sName, 'position'=>pos)   
     @socket.puts userdataJSON
   end
   
+  #Change user status on the server
   def self.changeStatus(status)
     statusJSON = JSON.generate('type'=>'status', 'status'=>status)
     @socket.puts statusJSON
   end
+  
+  def self.requestMsgHistory(user)
+    requestHistory = JSON.generate('type'=>'getMessages', 'user'=>user)
+    @socket.puts requestHistory
+  end
 
+  #Sending message
   def self.send(msg, receiver)
     Thread.new do
       msgJSON = JSON.generate('type'=>'message', 'user' =>@username, 'msg'=>msg, 'to'=>receiver)
@@ -708,6 +781,7 @@ class ClientModel
     end
   end
   
+  #START GETTERS REGION
   def self.get_username
     return @username
   end
@@ -727,7 +801,10 @@ class ClientModel
   def self.get_position
     return @position
   end
+  #END GETTERS REGION
 end
 
-$msgWindows = Array.new
-$app = ClientGUI.new
+
+$msgWindows = Array.new #Array for message windows
+$historyWindows = Array.new #Array for history windows
+$app = ClientGUI.new #Start application
