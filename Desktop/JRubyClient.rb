@@ -38,6 +38,34 @@ import javax.swing.JOptionPane
 import javax.swing.ListCellRenderer
 import javax.swing.ImageIcon
 
+java_import Java::javax.crypto.Cipher
+java_import Java::javax.crypto.spec.SecretKeySpec
+java_import Java::sun.misc.BASE64Encoder
+java_import Java::sun.misc.BASE64Decoder
+
+class Security
+  @key = "TheBestSecretKey"
+
+  def self.encrypt(data)
+    aes = javax.crypto.spec.SecretKeySpec.new(@key.to_java_bytes, "AES")
+    cipher = javax.crypto.Cipher.getInstance("AES")
+    cipher.init(javax.crypto.Cipher::ENCRYPT_MODE, aes)
+    bytes = cipher.doFinal(data.to_java_bytes)
+    encryptedValue = BASE64Encoder.new.encode(bytes)
+    encryptedValue.gsub!("\r\n", "")
+    return encryptedValue.to_java_string
+  end
+
+  def self.decrypt(encryptedData)
+    aes = javax.crypto.spec.SecretKeySpec.new(@key.to_java_bytes, "AES")
+    cipher = javax.crypto.Cipher.getInstance("AES")
+    cipher.init(javax.crypto.Cipher::DECRYPT_MODE, aes)
+    decodedValue = BASE64Decoder.new.decodeBuffer(encryptedData)
+    decValue = cipher.doFinal(decodedValue)
+    return decValue.to_s
+  end
+end
+
 class MsgWindow
   include ActionListener
   attr_accessor :frame, :messages, :outMsg, :title
@@ -91,7 +119,7 @@ class HistoryWindow
   attr_accessor :frame, :messages, :title
   
   def initialize(title)
-    @title="History["+title+"]"
+    @title="History ["+title+"]"
   end
   
   def open
@@ -117,6 +145,85 @@ class HistoryWindow
     frame.setVisible true
     
     frame.add_window_listener(java.awt.event.WindowListener.impl {|m,*a| $historyWindows.delete self if m == :windowClosing })
+  end
+end
+
+class UserDataWindow
+  attr_accessor :title
+  
+  def initialize(editable=false)
+    @editable = editable
+  end
+  
+  def open(username, email, fName, sName, position)
+    @title = "User data ["+username+"]"
+    frame = JFrame.new
+    basic = JPanel.new
+    basic.setLayout GridLayout.new 12,1
+    
+    font = Font.new "Verdana", Font::PLAIN, 16
+   
+    emailL = JLabel.new "Email"
+    emailL.setFont font
+    
+    passwordL = JLabel.new "New Password"
+    passwordL.setFont font
+    
+    fNameL = JLabel.new "First Name"
+    fNameL.setFont font
+    
+    sNameL = JLabel.new "Second Name"
+    sNameL.setFont font
+    
+    posL = JLabel.new "Position"
+    posL.setFont font  
+    
+    @emailD = JTextField.new email
+    @emailD.setFont font
+    
+    @fNameD = JTextField.new fName
+    @fNameD.setFont font
+    
+    @sNameD = JTextField.new sName
+    @sNameD.setFont font
+    
+    @posD = JTextField.new position
+    @posD.setFont font
+    
+    @newPasswordD = JPasswordField.new
+    @newPasswordD.setFont font
+    
+    if !@editable
+      @emailD.setEditable false
+      @fNameD.setEditable false
+      @sNameD.setEditable false
+      @posD.setEditable false
+    end
+
+    changeB = JButton.new "Change"
+    changeB.setFont font
+    changeB.addActionListener{|e| ClientController.changeUserData(@emailD.getText, @newPasswordD.getText, @fNameD.getText, @sNameD.getText, @posD.getText)}
+    
+    basic.add emailL
+    basic.add @emailD
+    @editable ? (basic.add(passwordL); basic.add(@newPasswordD)) : false
+    basic.add fNameL
+    basic.add @fNameD
+    basic.add sNameL
+    basic.add @sNameD
+    basic.add posL
+    basic.add @posD
+    @editable ? (basic.add(Box.createRigidArea(Dimension.new)); basic.add(changeB)) : false
+    frame.add basic
+    frame.pack
+    
+    frame.setDefaultCloseOperation JFrame::DISPOSE_ON_CLOSE
+    frame.setSize 490, 620
+    frame.setLocationRelativeTo nil
+    frame.setTitle @title
+    frame.setVisible true
+    
+    frame.add_window_listener(java.awt.event.WindowListener.impl {|m,*a| $userDataWindows.delete self if m == :windowClosing })
   end
 end
 
@@ -283,69 +390,6 @@ public
     @regWin.setVisible true
   end
   
-  def openUserDataWindow(username, email, fName, sName, position)
-    @dataWin = JFrame.new
-    basic = JPanel.new
-    basic.setLayout GridLayout.new 12,1
-    
-    font = Font.new "Verdana", Font::PLAIN, 16
-   
-    emailL = JLabel.new "Email"
-    emailL.setFont font
-    
-    passwordL = JLabel.new "New Password"
-    passwordL.setFont font
-    
-    fNameL = JLabel.new "First Name"
-    fNameL.setFont font
-    
-    sNameL = JLabel.new "Second Name"
-    sNameL.setFont font
-    
-    posL = JLabel.new "Position"
-    posL.setFont font  
-    
-    @emailD = JTextField.new email
-    @emailD.setFont font
-    
-    @newPasswordD = JPasswordField.new
-    @newPasswordD.setFont font
-    
-    @fNameD = JTextField.new fName
-    @fNameD.setFont font
-    
-    @sNameD = JTextField.new sName
-    @sNameD.setFont font
-    
-    @posD = JTextField.new position
-    @posD.setFont font
-    
-    changeB = JButton.new "Change"
-    changeB.setFont font
-    changeB.addActionListener{|e| ClientController.changeUserData(@emailD.getText, @newPasswordD.getText, @fNameD.getText, @sNameD.getText, @posD.getText)}
-    
-    basic.add emailL
-    basic.add @emailD
-    basic.add passwordL
-    basic.add @newPasswordD
-    basic.add fNameL
-    basic.add @fNameD
-    basic.add sNameL
-    basic.add @sNameD
-    basic.add posL
-    basic.add @posD
-    basic.add Box.createRigidArea Dimension.new
-    basic.add changeB
-    @dataWin.add basic
-    @dataWin.pack
-    
-    @dataWin.setDefaultCloseOperation JFrame::DISPOSE_ON_CLOSE
-    @dataWin.setSize 490, 620
-    @dataWin.setLocationRelativeTo nil
-    @dataWin.setTitle "User data ["+username+"]"
-    @dataWin.setVisible true
-  end
-  
   def openMainWindow(title)
     self.addTrayIcon title, "images/tray.png"
     @logInWin.setVisible false
@@ -373,6 +417,7 @@ public
     @listPopup.add userData
     @listPopup.add history
     
+    userData.addActionListener{|e| (!@list.isSelectionEmpty) ? (ClientController.requestUserData(@list.getSelectedValue.split(':')[0])) : (false)}
     history.addActionListener{|e| (!@list.isSelectionEmpty) ? (ClientController.requestMsgHistory(@list.getSelectedValue.split(':')[0])) : (false)}
     
     @list.addMouseListener MouseAction.new
@@ -411,7 +456,7 @@ public
       aboutItem = MenuItem.new "About"
       exitItem = MenuItem.new "Exit"
       
-      userData.addActionListener{|e| openUserDataWindow ClientModel.get_username, ClientModel.get_email, ClientModel.get_fName, ClientModel.get_sName, ClientModel.get_position}
+      userData.addActionListener{|e| ClientController.showUserData(ClientModel.get_username, ClientModel.get_email, ClientModel.get_fName, ClientModel.get_sName, ClientModel.get_position, true)}
       aboutItem.addActionListener{|e| ClientController.about}
       exitItem.addActionListener{|e| java.lang.System.exit(0)}
       
@@ -512,33 +557,38 @@ class ClientController
     JOptionPane.showMessageDialog nil, "Client-server chat\nCreated by Nikita Mogyl'ov", "About", JOptionPane::INFORMATION_MESSAGE
   end
   
+  def self.dataChanged
+    JOptionPane.showMessageDialog nil, "Data changed successfully", "User data", JOptionPane::INFORMATION_MESSAGE
+  end
+  
   def self.accessGranted(username)
     $app.openMainWindow(username)
   end
   
   def self.registration(login, email, pass, fName, sName, pos, server)
-    if login <= " "
-      JOptionPane.showMessageDialog nil, "Login should not be empty", "Wrong credentials", JOptionPane::ERROR_MESSAGE
+    if login == "" || login.match(/\s/)
+      JOptionPane.showMessageDialog nil, "Login should not contain spaces and be empty", "Wrong credentials", JOptionPane::ERROR_MESSAGE
       
-    elsif email <= " " || !email.match(/\A[^@\s]+@([^@\s]+\.)+[^@\s]+\z/)
+    elsif email == " " || !email.match(/\A[^@\s]+@([^@\s]+\.)+[^@\s]+\z/)
       JOptionPane.showMessageDialog nil, "Wrong email", "Wrong credentials", JOptionPane::ERROR_MESSAGE
       
-    elsif pass == ""
-      JOptionPane.showMessageDialog nil, "Password should not be empty", "Wrong credentials", JOptionPane::ERROR_MESSAGE
+    elsif pass == "" || pass.match(/\s/)
+      JOptionPane.showMessageDialog nil, "Password should not contain spaces and be empty", "Wrong credentials", JOptionPane::ERROR_MESSAGE
       
-    elsif fName <= " " || /\d+/.match(fName)
+    elsif fName == "" || /\d+/.match(fName)
       JOptionPane.showMessageDialog nil, "First name should not contain numbers and be empty", "Wrong credentials", JOptionPane::ERROR_MESSAGE
       
-    elsif sName <= " " || /\d+/.match(sName)
+    elsif sName == "" || /\d+/.match(sName)
       JOptionPane.showMessageDialog nil, "Second name should not contain numbers and be empty", "Wrong credentials", JOptionPane::ERROR_MESSAGE
-    elsif pos <= " "
+      
+    elsif pos == ""
       JOptionPane.showMessageDialog nil, "Position should not be empty", "Wrong credentials", JOptionPane::ERROR_MESSAGE
       
-    elsif server <= " "
+    elsif server == ""
       JOptionPane.showMessageDialog nil, "Server should not be empty", "Wrong credentials", JOptionPane::ERROR_MESSAGE
       
     else
-      ClientModel.registration login, email, pass, fName, sName, pos, server
+      ClientModel.registration login.strip, email.strip, pass.strip, fName.strip, sName.strip, pos.strip, server.strip
     end
   end
   
@@ -578,20 +628,35 @@ class ClientController
   end
   
   def self.changeUserData(email, pass, fName, sName, pos)      
-    if email <= " " || !email.match(/\A[^@\s]+@([^@\s]+\.)+[^@\s]+\z/)
+    if email == "" || !email.match(/\A[^@\s]+@([^@\s]+\.)+[^@\s]+\z/)
       JOptionPane.showMessageDialog nil, "Wrong email", "Wrong credentials", JOptionPane::ERROR_MESSAGE
       
-    elsif fName <= " " || /\d+/.match(fName)
+    elsif fName == "" || /\d+/.match(fName)
       JOptionPane.showMessageDialog nil, "First name should not contain numbers and be empty", "Wrong credentials", JOptionPane::ERROR_MESSAGE
       
-    elsif sName <= " " || /\d+/.match(sName)
+    elsif sName == "" || /\d+/.match(sName)
       JOptionPane.showMessageDialog nil, "Second name should not contain numbers and be empty", "Wrong credentials", JOptionPane::ERROR_MESSAGE
       
-    elsif pos <= " "
+    elsif pos == ""
       JOptionPane.showMessageDialog nil, "Position should not be empty", "Wrong credentials", JOptionPane::ERROR_MESSAGE
     else
-      ClientModel.changeUserData email, pass, fName, sName, pos
+      ClientModel.changeUserData email.strip, pass.strip, fName.strip, sName.strip, pos.strip
     end
+  end
+  
+  def self.requestUserData(username)
+    ClientModel.requestUserData(username)
+  end
+  
+  def self.showUserData(user, email, fName, sName, pos, editable)
+    $userDataWindows.each do |win|
+      if win.title == "User data ["+user+"]"
+        return
+      end
+    end
+    w = UserDataWindow.new editable
+    $userDataWindows.push w
+    w.open(user, email, fName, sName, pos)
   end
   
   def self.requestMsgHistory(user)
@@ -600,7 +665,7 @@ class ClientController
 
   def self.showMsgHistory(user, msgs)
     $historyWindows.each do |win|
-      if win.title == "History["+user+"]"
+      if win.title == "History ["+user+"]"
         win.messages.append str
         return
       end
@@ -639,7 +704,7 @@ class ClientController
     $app.listModel.removeElement user
     $app.listModel.addElement user.split(':')[0]+":online"
     SwingUtilities.updateComponentTreeUI($app.mainWin)
-    $app.trayIcon.displayMessage "New connection", "User "+user+" connected", TrayIcon::MessageType::INFO
+    $app.trayIcon.displayMessage "New connection", "User "+user.split(':')[0]+" connected", TrayIcon::MessageType::INFO
   end
   
   def self.userDisconnected(user)
@@ -664,11 +729,11 @@ class ClientModel
     end   
    
     userdataJSON = JSON.generate('type'=>'userdata', 'login' =>login, 'pass'=>pass)   
-    @socket.puts userdataJSON   
+    @socket.puts Security.encrypt(userdataJSON)  
     Thread.new do
       while(true)
-        @serverMsg=@socket.recv(5000)
-        self.data_sort(@serverMsg)
+        @serverMsg=@socket.recv(10000)
+        self.data_sort(Security.decrypt(@serverMsg))
       end
     end
   end
@@ -685,12 +750,13 @@ class ClientModel
       return 
     end   
    
-    userdataJSON = JSON.generate('type'=>'regRequest', 'login' =>login, 'email' =>email, 'pass'=>pass, 'fName'=>fName, 'sName'=>sName, 'position'=>pos)   
-    @socket.puts userdataJSON
+    userdataJSON = JSON.generate('type'=>'regRequest', 'login' =>login, 'email' =>email, 'pass'=>pass, 'fName'=>fName, 'sName'=>sName, 'position'=>pos)
+    p userdataJSON
+    @socket.puts Security.encrypt(userdataJSON)
     Thread.new do
       while(true)
-        @serverMsg=@socket.recv(5000)
-        self.data_sort(@serverMsg)
+        @serverMsg=@socket.recv(10000)
+        self.data_sort(Security.decrypt(@serverMsg))
       end
     end
   end
@@ -745,12 +811,26 @@ class ClientModel
       ClientController.setUserBusy(JSON.parse(servMsg)["name"])
       result = true
       
-    elsif JSON.parse(servMsg)["type"] == "userData"
+    elsif JSON.parse(servMsg)["type"] == "currentUserData"
       @username = JSON.parse(servMsg)["login"]
       @email = JSON.parse(servMsg)["email"]
       @fName = JSON.parse(servMsg)["fName"]
       @sName = JSON.parse(servMsg)["sName"]
       @position = JSON.parse(servMsg)["position"]
+      result = true
+      
+    elsif JSON.parse(servMsg)["type"] == "dataChanged"
+      @username = JSON.parse(servMsg)["login"]
+      @email = JSON.parse(servMsg)["email"]
+      @fName = JSON.parse(servMsg)["fName"]
+      @sName = JSON.parse(servMsg)["sName"]
+      @position = JSON.parse(servMsg)["position"]
+      ClientController.dataChanged
+      result = true
+      
+    elsif JSON.parse(servMsg)["type"] == "userData"
+      ClientController.showUserData(JSON.parse(servMsg)["user"], JSON.parse(servMsg)["email"], JSON.parse(servMsg)["fName"], JSON.parse(servMsg)["sName"], JSON.parse(servMsg)["position"], false)
+      result = true
     end
     
     return result
@@ -759,25 +839,30 @@ class ClientModel
   #Request for change user data on the server 
   def self.changeUserData(email, pass, fName, sName, pos)
     userdataJSON = JSON.generate('type'=>'changeUserData', 'login' =>@username, 'email' =>email, 'pass'=>pass, 'fName'=>fName, 'sName'=>sName, 'position'=>pos)   
-    @socket.puts userdataJSON
+    @socket.puts Security.encrypt(userdataJSON)
   end
   
   #Change user status on the server
   def self.changeStatus(status)
     statusJSON = JSON.generate('type'=>'status', 'status'=>status)
-    @socket.puts statusJSON
+    @socket.puts Security.encrypt(statusJSON)
   end
   
   def self.requestMsgHistory(user)
     requestHistory = JSON.generate('type'=>'getMessages', 'user'=>user)
-    @socket.puts requestHistory
+    @socket.puts Security.encrypt(requestHistory)
+  end
+  
+  def self.requestUserData(user)
+    requestUData = JSON.generate('type'=>'getUserData', 'user'=>user)
+    @socket.puts Security.encrypt(requestUData)
   end
 
   #Sending message
   def self.send(msg, receiver)
     Thread.new do
       msgJSON = JSON.generate('type'=>'message', 'user' =>@username, 'msg'=>msg, 'to'=>receiver)
-      @socket.puts msgJSON
+      @socket.puts Security.encrypt(msgJSON)
     end
   end
   
@@ -807,4 +892,5 @@ end
 
 $msgWindows = Array.new #Array for message windows
 $historyWindows = Array.new #Array for history windows
+$userDataWindows = Array.new #Array for userdata windows
 $app = ClientGUI.new #Start application
