@@ -41,11 +41,12 @@ class ClientInstance extends Thread
             String clientMsg="";
             JSONObject clientMsgJSON = new JSONObject();
             JSONParser parser=new JSONParser();
-            
+
             //waiting for incoming message from current client
             while((clientMsg = in.readLine()) != null)
             {
-                System.out.println("R "+this.login+"  "+clientMsg);
+            	System.out.println("R "+this.login+"  "+clientMsg);
+            	clientMsg = Security.decrypt(clientMsg);
                 clientMsgJSON = (JSONObject)parser.parse(clientMsg);
                 Server.DataSort(this, clientMsgJSON);
             }
@@ -58,8 +59,8 @@ class ClientInstance extends Thread
             try{
                 socket.close();
                 DisconnectThisUser();
-            }catch(IOException io)
-            {System.out.println("run - IOException: "+io);}
+            }catch(Exception e)
+            {System.out.println(e);}
         }
         catch(Exception e)
         {System.out.println("run - error: "+e);}
@@ -67,16 +68,14 @@ class ClientInstance extends Thread
 
     }
     
-    public void DisconnectThisUser()
-    {
+    public void DisconnectThisUser() throws Exception{
         System.out.println("User "+this.login+" disconnected");      
         Server.ChangeStatus(this, "offline");
         Server.clients.remove(this);
     }
     
-    public void Write(JSONObject json)
-    {
-        System.out.println("W "+this.login+"  "+json);
-        out.println(json);
+    public void Write(JSONObject json) throws Exception{
+        System.out.println("W "+this.login+"  "+Security.encrypt(json.toString()));
+        out.println(Security.encrypt(json.toString()));
     }
 }

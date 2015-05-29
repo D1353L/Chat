@@ -62,6 +62,9 @@ class Server extends Thread
             
             else if("getMessages".equals(fromClient.get("type")))
             	GetMessages(client, (String)fromClient.get("user"));
+            
+            else if("getUserData".equals(fromClient.get("type")))
+            	GetUserData(client, (String)fromClient.get("user"));
             	
             else if("message".equals(fromClient.get("type")))
             {
@@ -84,8 +87,7 @@ class Server extends Thread
             				
             				Date dNow = new Date();
             				SimpleDateFormat ft = new SimpleDateFormat("dd.M.yyyy HH:mm:ss");
-            				db.addMessage(client.login, item.login, "["+ft.format(dNow)+"] "+client.login+": "+fromClient.get("msg").toString());
-
+            				db.addMessage(client.login, item.login, Security.encrypt("["+ft.format(dNow)+"] "+client.login+": "+fromClient.get("msg").toString()+"\r\n"));
             				break;
             			}
             		}
@@ -100,9 +102,8 @@ class Server extends Thread
         {System.out.println("DataSort - init error: "+e);}
     }
     
-    private static void LogIn(ClientInstance client, JSONObject json)
-    {
-        String login=(String)json.get("login"), pass=(String)json.get("pass");
+    private static void LogIn(ClientInstance client, JSONObject json) throws Exception{
+        String login=(String)json.get("login"), pass=Security.encrypt((String)json.get("pass"));
         JSONObject request = new JSONObject();
         request.put("type", "confirmation");
         request.put("name", login);
@@ -125,7 +126,7 @@ class Server extends Thread
             
             //Sending user data from DB to client
             JSONObject userdata = new JSONObject();
-            userdata.put("type", "userData");
+            userdata.put("type", "currentUserData");
             userdata.put("login", login);
             userdata.put("email",db.getEmail(login));
             userdata.put("fName",db.getFname(login));
@@ -168,8 +169,7 @@ class Server extends Thread
         }
     }
     
-    private static void Registration(ClientInstance client, String login, String email, String pass, String fName, String sName, String position)
-    {
+    private static void Registration(ClientInstance client, String login, String email, String pass, String fName, String sName, String position) throws Exception{
     	JSONObject regResp = new JSONObject();
     	regResp.put("type", "regResponse");
     	
@@ -177,38 +177,36 @@ class Server extends Thread
     		regResp.put("conflictedData", "login");
     		regResp.put("exception", "");
     	}
-    	else if(db.IsEmailExist(login)){
+    	else if(db.IsEmailExist(email)){
     		regResp.put("conflictedData", "email");
     		regResp.put("exception", "");
     	}
     	else{
-    		String dbResp = db.AddNewUser(login, email, pass, fName, sName, position);
-    		regResp.put("conflictedData", "email");
+    		String dbResp = db.AddNewUser(login, email, Security.encrypt(pass), fName, sName, position);
+    		regResp.put("conflictedData", "");
     		regResp.put("exception", dbResp);
     	}
     	client.Write(regResp);
     }
     
-    private static void ChangeUserData(ClientInstance client, String login, String email, String pass, String fName, String sName, String position)
-    {
+    private static void ChangeUserData(ClientInstance client, String login, String email, String pass, String fName, String sName, String position) throws Exception{
     	db.setEmail(login, email);
     	db.setFName(login, fName);
     	db.setSName(login, sName);
     	db.setPosition(login, position);
-    	if(pass.compareTo(" ") > 0) db.setPassword(login, pass);
+    	if(!pass.isEmpty()) db.setPassword(login, Security.encrypt(pass));
     	
-    	JSONObject userdata = new JSONObject();
-    	userdata.put("type", "userData");
-        userdata.put("login", login);
-        userdata.put("email",db.getEmail(login));
-        userdata.put("fName",db.getFname(login));
-        userdata.put("sName",db.getSName(login));
-        userdata.put("position",db.getPosition(login));
-    	client.Write(userdata);
+    	JSONObject currentUserData = new JSONObject();
+    	currentUserData.put("type", "dataChanged");
+    	currentUserData.put("login", login);
+    	currentUserData.put("email",db.getEmail(login));
+    	currentUserData.put("fName",db.getFname(login));
+    	currentUserData.put("sName",db.getSName(login));
+    	currentUserData.put("position",db.getPosition(login));
+    	client.Write(currentUserData);
     }
     
-    public static void ChangeStatus(ClientInstance client, String status)
-    {
+    public static void ChangeStatus(ClientInstance client, String status) throws Exception{
     	JSONObject response = new JSONObject();
     	
     	if("online".equals(status))
@@ -234,12 +232,22 @@ class Server extends Thread
         	if(!item.login.equals(client.login)) item.Write(response);
     }
     
-    public static void GetMessages(ClientInstance client, String user)
-    {
+    public static void GetMessages(ClientInstance client, String user) throws Exception{
     	JSONObject messages = new JSONObject();
     	messages.put("type", "messages");
-    	messages.put("messages", db.getMessages(client.login, user));
+    	messages.put("messages", Security.decrypt(db.getMessages(client.login, user)));
     	messages.put("user", user);
     	client.Write(messages);
+    }
+    
+    public static void GetUserData(ClientInstance client, String user) throws Exception{
+    	JSONObject userdata = new JSONObject();
+    	userdata.put("type", "userData");
+        userdata.put("user", user);
+        userdata.put("email",db.getEmail(user));
+        userdata.put("fName",db.getFname(user));
+        userdata.put("sName",db.getSName(user));
+        userdata.put("position",db.getPosition(user));
+    	client.Write(userdata);
     }
 }

@@ -244,7 +244,7 @@ public class PostgreSQLJDBC {
 			   ResultSet rs = stmt.executeQuery( "SELECT message FROM messages WHERE (sender = '"+user1+"' AND receiver = '"+user2+"') OR (sender = '"+user2+"' AND receiver = '"+user1+"');" );
 			   
 			   String msg = "";
-			   while (rs.next()) msg = msg+rs.getString("message")+"\n";
+			   while (rs.next()) msg = msg+rs.getString("message");
 			   
 			   rs.close();
 			   stmt.close();
