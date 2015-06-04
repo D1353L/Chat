@@ -264,7 +264,7 @@ public
     @password = JPasswordField.new
     @password.setFont font
     
-    @server = JTextField.new "localhost:5196"
+    @server = JTextField.new "localhost:49005"
     @server.setFont font
     
     loginB = JButton.new "Sign in"
