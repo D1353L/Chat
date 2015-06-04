@@ -664,9 +664,16 @@ class ClientController
   end
 
   def self.showMsgHistory(user, msgs)
+    msgs.gsub!(/\u0005/, '')
+    msgs.gsub!(/\a/, '')
+    msgs.gsub!(/\u0004/, '')
+    msgs.gsub!(/\u000E/, '')
+    msgs.gsub!(/\u0010/, '')
+    msgs.gsub!(/\u0001/, '')
+
     $historyWindows.each do |win|
       if win.title == "History ["+user+"]"
-        win.messages.append str
+        win.messages.append msgs
         return
       end
     end
@@ -751,7 +758,6 @@ class ClientModel
     end   
    
     userdataJSON = JSON.generate('type'=>'regRequest', 'login' =>login, 'email' =>email, 'pass'=>pass, 'fName'=>fName, 'sName'=>sName, 'position'=>pos)
-    p userdataJSON
     @socket.puts Security.encrypt(userdataJSON)
     Thread.new do
       while(true)
