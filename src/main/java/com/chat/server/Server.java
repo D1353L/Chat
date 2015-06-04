@@ -12,7 +12,7 @@ import java.text.*;
 
 class Server extends Thread
 {
-    final static int port=5196;
+    final static int port=49005;
     static ArrayList<ClientInstance> clients=new ArrayList<ClientInstance>();
     static PostgreSQLJDBC db = new PostgreSQLJDBC();
 
