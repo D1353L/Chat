@@ -14,15 +14,16 @@ import java.text.*;
 class Server extends Thread
 {
     static ArrayList<ClientInstance> clients=new ArrayList<ClientInstance>();
-    static PostgreSQLJDBC db = new PostgreSQLJDBC();
+    static PostgreSQLJDBC db;
 
     public static void main(String args[])
     {
         ServerSocket server=null;
         try
         {
-            server = new ServerSocket(Integer.parseInt(System.getenv("PORT")));
-            System.out.println("server is started on "+System.getenv("PORT"));
+            server = new ServerSocket(Integer.parseInt(args[0]));
+            System.out.println("server is started on "+args[0]);
+            db = new PostgreSQLJDBC(args[1], args[2], args[3]); //DB_URL,DB_USERNAME, DB_PASS
 
             //wait for client
             while(true)
