@@ -2,8 +2,9 @@ package com.chat.server;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.ArrayList;
-import org.json.simple.JSONObject;
+
 import org.json.simple.*;
+
 import java.util.*;
 import java.text.*;
 
@@ -12,7 +13,6 @@ import java.text.*;
 
 class Server extends Thread
 {
-    final static int port=49005;
     static ArrayList<ClientInstance> clients=new ArrayList<ClientInstance>();
     static PostgreSQLJDBC db = new PostgreSQLJDBC();
 
@@ -21,8 +21,8 @@ class Server extends Thread
         ServerSocket server=null;
         try
         {
-            server = new ServerSocket(port);
-            System.out.println("server is started");
+            server = new ServerSocket(Integer.parseInt(System.getenv("PORT")));
+            System.out.println("server is started on "+System.getenv("PORT"));
 
             //wait for client
             while(true)
