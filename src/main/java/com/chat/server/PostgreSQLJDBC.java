@@ -24,8 +24,8 @@ public class PostgreSQLJDBC {
 	         c.setAutoCommit(false);
 	         
 	         stmt = c.createStatement();
-	         stmt.executeUpdate("CREATE TABLE IF NOT EXISTS users(login text NOT NULL, email text, password text, first_name text, second_name text, \"position\" text, CONSTRAINT \"Plogin\" PRIMARY KEY (login)) WITH (OIDS=FALSE); ALTER TABLE users OWNER TO postgres;");
-	         stmt.executeUpdate("CREATE TABLE IF NOT EXISTS messages(sender text NOT NULL, receiver text NOT NULL, message text, id serial NOT NULL, CONSTRAINT \"pId\" PRIMARY KEY (id), CONSTRAINT \"fReceiver\" FOREIGN KEY (receiver) REFERENCES users (login) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION, CONSTRAINT \"fSender\" FOREIGN KEY (sender) REFERENCES users (login) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION) WITH ( OIDS=FALSE); ALTER TABLE messages OWNER TO postgres; CREATE INDEX \"fki_fReceiver\" ON messages USING btree (receiver COLLATE pg_catalog.\"default\"); CREATE INDEX \"fki_fSender\" ON messages USING btree (sender COLLATE pg_catalog.\"default\");");
+	         stmt.executeUpdate("CREATE TABLE IF NOT EXISTS users(login text NOT NULL, email text, password text, first_name text, second_name text, \"position\" text, CONSTRAINT \"Plogin\" PRIMARY KEY (login)) WITH (OIDS=FALSE);");
+	         stmt.executeUpdate("CREATE TABLE IF NOT EXISTS messages(sender text NOT NULL, receiver text NOT NULL, message text, id serial NOT NULL, CONSTRAINT \"pId\" PRIMARY KEY (id), CONSTRAINT \"fReceiver\" FOREIGN KEY (receiver) REFERENCES users (login) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION, CONSTRAINT \"fSender\" FOREIGN KEY (sender) REFERENCES users (login) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION) WITH ( OIDS=FALSE); CREATE INDEX \"fki_fReceiver\" ON messages USING btree (receiver COLLATE pg_catalog.\"default\"); CREATE INDEX \"fki_fSender\" ON messages USING btree (sender COLLATE pg_catalog.\"default\");");
 	      } catch (Exception e) {
 	         e.printStackTrace();
 	         System.err.println(e.getClass().getName()+": "+e.getMessage());
