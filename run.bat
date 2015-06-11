@@ -1,1 +1,1 @@
-java %JAVA_OPTS% -cp target/classes;"target\dependency\*" com.chat.server.Server 49005 localhost:5432/ChatDB postgres admin123
+java %JAVA_OPTS% -cp target/classes;"target\dependency\*" com.chat.server.Server 49005 localhost:5432 postgres admin123

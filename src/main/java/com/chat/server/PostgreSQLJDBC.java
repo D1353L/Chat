@@ -14,10 +14,18 @@ public class PostgreSQLJDBC {
 	      try {
 	         Class.forName("org.postgresql.Driver");
 
-	         c = DriverManager.getConnection("jdbc:postgresql://"+DB_URL, DB_USERNAME, DB_PASS);
-	         c.setAutoCommit(false);
+	         c = DriverManager.getConnection("jdbc:postgresql://"+DB_URL+"/postgres", DB_USERNAME, DB_PASS);
+	         
 	         
 	         stmt = c.createStatement();
+	         
+	         stmt.executeUpdate("CREATE DATABASE chatdb");
+	         
+	         
+	         c = DriverManager.getConnection("jdbc:postgresql://"+DB_URL+"/chatdb", DB_USERNAME, DB_PASS);
+	         
+	         c.setAutoCommit(false);
+	         
 	         stmt.executeUpdate("CREATE TABLE IF NOT EXISTS users (login text NOT NULL, email text, password text, first_name text, second_name text, \"position\" text, CONSTRAINT \"Plogin\" PRIMARY KEY (login)) WITH (OIDS=FALSE);");
 	         
 	         if(stmt.executeUpdate("CREATE TABLE IF NOT EXISTS messages (sender text NOT NULL, receiver text NOT NULL, message text, id serial NOT NULL, CONSTRAINT \"pId\" PRIMARY KEY (id), CONSTRAINT \"fReceiver\" FOREIGN KEY (receiver) REFERENCES users (login) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION, CONSTRAINT \"fSender\" FOREIGN KEY (sender) REFERENCES users (login) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION) WITH ( OIDS=FALSE);") > 0)
