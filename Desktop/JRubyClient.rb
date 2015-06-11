@@ -553,6 +553,11 @@ class ClientController
     JOptionPane.showMessageDialog nil, "User "+username+" is already connected", "Log in failed", JOptionPane::ERROR_MESSAGE
   end
   
+  def self.connectionLost
+    JOptionPane.showMessageDialog nil, "Connection lost", "Connection lost", JOptionPane::ERROR_MESSAGE
+    java.lang.System.exit(0)
+  end
+  
   def self.about
     JOptionPane.showMessageDialog nil, "Client-server chat\nCreated by Nikita Mogyl'ov", "About", JOptionPane::INFORMATION_MESSAGE
   end
@@ -736,7 +741,7 @@ class ClientModel
     end   
    
     userdataJSON = JSON.generate('type'=>'userdata', 'login' =>login, 'pass'=>pass)   
-    @socket.puts Security.encrypt(userdataJSON)  
+    @socket.puts Security.encrypt(userdataJSON)
     Thread.new do
       while(true)
         @serverMsg=@socket.recv(10000)
@@ -844,31 +849,51 @@ class ClientModel
   
   #Request for change user data on the server 
   def self.changeUserData(email, pass, fName, sName, pos)
-    userdataJSON = JSON.generate('type'=>'changeUserData', 'login' =>@username, 'email' =>email, 'pass'=>pass, 'fName'=>fName, 'sName'=>sName, 'position'=>pos)   
-    @socket.puts Security.encrypt(userdataJSON)
+    userdataJSON = JSON.generate('type'=>'changeUserData', 'login' =>@username, 'email' =>email, 'pass'=>pass, 'fName'=>fName, 'sName'=>sName, 'position'=>pos)  
+    begin 
+      @socket.puts Security.encrypt(userdataJSON)
+    rescue SystemCallError
+      ClientController.connectionLost
+    end
   end
   
   #Change user status on the server
   def self.changeStatus(status)
     statusJSON = JSON.generate('type'=>'status', 'status'=>status)
-    @socket.puts Security.encrypt(statusJSON)
+    begin
+      @socket.puts Security.encrypt(statusJSON)
+    rescue SystemCallError
+      ClientController.connectionLost
+    end
   end
   
   def self.requestMsgHistory(user)
     requestHistory = JSON.generate('type'=>'getMessages', 'user'=>user)
-    @socket.puts Security.encrypt(requestHistory)
+    begin
+      @socket.puts Security.encrypt(requestHistory)
+    rescue SystemCallError
+        ClientController.connectionLost
+    end
   end
   
   def self.requestUserData(user)
     requestUData = JSON.generate('type'=>'getUserData', 'user'=>user)
-    @socket.puts Security.encrypt(requestUData)
+    begin
+      @socket.puts Security.encrypt(requestUData)
+    rescue SystemCallError
+      ClientController.connectionLost
+    end
   end
 
   #Sending message
   def self.send(msg, receiver)
     Thread.new do
       msgJSON = JSON.generate('type'=>'message', 'user' =>@username, 'msg'=>msg, 'to'=>receiver)
-      @socket.puts Security.encrypt(msgJSON)
+      begin
+        @socket.puts Security.encrypt(msgJSON)
+      rescue SystemCallError
+        ClientController.connectionLost
+      end
     end
   end
   
