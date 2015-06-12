@@ -22,3 +22,7 @@ end
 end
 
 Main.new
+
+event_thread = nil
+SwingUtilities.invokeAndWait { event_thread = java.lang.Thread.currentThread }
+event_thread.join

@@ -193,7 +193,7 @@ public
   end
   
   def openMainWindow(title)
-    self.addTrayIcon title, "images/tray.png"
+    self.addTrayIcon title, "./lib/images/tray.png"
     @logInWin.setVisible false
     
     @mainWin = JFrame.new

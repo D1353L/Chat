@@ -10,7 +10,7 @@ class ImageListCellRenderer < Java::javax::swing::JLabel
 
   def getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
     label = JLabel.new
-    label.setIcon(ImageIcon.new("images/"+value.split(':')[1]+".gif"))
+    label.setIcon(ImageIcon.new("./lib/images/"+value.split(':')[1]+".gif"))
     label.setText(value.split(':')[0])
     label.setHorizontalTextPosition(JLabel::RIGHT)
     if isSelected
