@@ -7,11 +7,11 @@ Gem::Specification.new do |s|
   s.description      = 'Chat-client'
   s.email            = ['maghanik400@gmail.com']
   s.homepage         = ''
-  s.require_paths    = ['lib','bin']
+  s.require_paths    = ['bin']
   s.rubygems_version = '1.8.24'
   s.summary          = 'Chat-client'
 
-  s.files            = Dir.glob("{bin,lib}/**/*")
+  s.files            = Dir.glob("{bin}/**/*")
   #s.licenses        = ['MIT']
 
   s.executables      = ['Main.rb']
