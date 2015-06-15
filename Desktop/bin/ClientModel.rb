@@ -125,7 +125,7 @@ class ClientModel
     userdataJSON = JSON.generate('type'=>'changeUserData', 'login' =>@username, 'email' =>email, 'pass'=>pass, 'fName'=>fName, 'sName'=>sName, 'position'=>pos)  
     begin 
       @socket.puts Security.encrypt(userdataJSON)
-    rescue SystemCallError
+    rescue SystemCallError, IOError
       ClientController.connectionLost
     end
   end
@@ -135,7 +135,7 @@ class ClientModel
     statusJSON = JSON.generate('type'=>'status', 'status'=>status)
     begin
       @socket.puts Security.encrypt(statusJSON)
-    rescue SystemCallError
+    rescue SystemCallError, IOError
       ClientController.connectionLost
     end
   end
@@ -144,7 +144,7 @@ class ClientModel
     requestHistory = JSON.generate('type'=>'getMessages', 'user'=>user)
     begin
       @socket.puts Security.encrypt(requestHistory)
-    rescue SystemCallError
+    rescue SystemCallError, IOError
         ClientController.connectionLost
     end
   end
@@ -153,7 +153,7 @@ class ClientModel
     requestUData = JSON.generate('type'=>'getUserData', 'user'=>user)
     begin
       @socket.puts Security.encrypt(requestUData)
-    rescue SystemCallError
+    rescue SystemCallError, IOError
       ClientController.connectionLost
     end
   end
@@ -164,7 +164,7 @@ class ClientModel
       msgJSON = JSON.generate('type'=>'message', 'user' =>@username, 'msg'=>msg, 'to'=>receiver)
       begin
         @socket.puts Security.encrypt(msgJSON)
-      rescue SystemCallError
+      rescue SystemCallError, IOError
         ClientController.connectionLost
       end
     end
