@@ -1,4 +1,5 @@
-# Client-server chat
+# Chat
+Client-server chat based on TCP-sockets.
 
 # Environment
 Programming languages: *Java, Ruby.*<br>
