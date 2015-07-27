@@ -27,4 +27,4 @@ Just execute Client/Desktop/Desktop.jar
 <img src="http://s23.postimg.org/yf5w1wabf/2015_07_25_23_10_34_admin.jpg" />
 
 *User data window*<br>
-<img src="http://s10.postimg.org/ohenxp2cp/2015_07_27_22_32_06_User_data_ntesla.jpg" />
+<img src="http://s7.postimg.org/u8ru21eyj/2015_07_27_22_35_08_User_data_ntesla.jpg" />
